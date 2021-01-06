@@ -1,0 +1,37 @@
+{
+    "name": "wapplr-posttypes",
+    "description": "With this package easier initialize a database collection, and it gives a structure for that",
+    "license": "MIT",
+    "dependencies": {
+        "mongoose": "^5.9.6",
+        "wapplr": "^1.0.0",
+        "wapplr-mongo": "^1.0.0"
+    },
+    "devDependencies": {
+        "wapplr-cli": "^1.0.0"
+    },
+    "engines": {
+        "node": ">=12.0.0"
+    },
+    "browserslist": [
+        ">1%",
+        "last 4 versions",
+        "Firefox ESR",
+        "not ie < 9"
+    ],
+    "scripts": {
+        "wapplr-posttypes start": "wapplr-cli start",
+        "wapplr-posttypes build": "wapplr-cli build",
+        "wapplr-posttypes clean": "wapplr-cli clean"
+    },
+    "version": "1.0.0",
+    "files": [
+        "dist/*"
+    ],
+    "main": "dist/server",
+    "browser": "dist/client",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/wapplr/wapplr-posttypes.git"
+    }
+}
