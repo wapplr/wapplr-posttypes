@@ -1,16 +1,17 @@
-export default async function initDatabase(p = {}) {
-    const {wapp, name = "Model"} = p;
-    const server = wapp.server;
+import wapplrMongo from "wapplr-mongo";
 
-    const globalDatabaseConfig = (server.settings && server.settings.databaseConfig) ? server.settings.databaseConfig : {};
-    const globalDatabaseConfigForPosttype = globalDatabaseConfig[name] || {};
-    const config = (p.config) ? {...globalDatabaseConfigForPosttype, ...p.config} : {...globalDatabaseConfigForPosttype};
+export default async function initDatabase(p = {}) {
+
+    const {wapp, config = {}} = p;
 
     const {
-        mongoConnectionString = globalDatabaseConfig.mongoConnectionString || "mongodb://localhost/wapplr",
+        mongoConnectionString
     } = config;
 
     const wappServer = wapp.server;
+    if (!wappServer.database){
+        wapplrMongo(p);
+    }
 
     return await wappServer.database.getDatabase({mongoConnectionString, addIfThereIsNot: true})
 

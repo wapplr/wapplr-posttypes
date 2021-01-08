@@ -7,15 +7,12 @@ function getFields(p = {}) {
 
 export default async function getModel(p = {}) {
 
-    const {wapp, name = "Model"} = p;
-    const {server = {}} = wapp;
+    const {name = "post"} = p;
+    const capitalzedName = name.slice(0,1).toUpperCase()+name.slice(1);
 
-    const globalDatabaseConfig = (server.settings && server.settings.databaseConfig) ? server.settings.databaseConfig : {};
-    const globalDatabaseConfigForPosttype = globalDatabaseConfig[name] || {};
-    const config = (p.config) ? {...globalDatabaseConfigForPosttype, ...p.config} : {...globalDatabaseConfigForPosttype};
+    const config = p.config || {};
 
-    const modelName = config.modelName || name.slice(0,1).toUpperCase()+name.slice(1);
-
+    const modelName = config.modelName || capitalzedName;
     const addSchemaFields = config.schemaFields || {};
     const setSchemaMiddleware = config.setSchemaMiddleware;
 

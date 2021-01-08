@@ -4,11 +4,11 @@ With this package easier initialize a database collection for [Wapplr](https://g
 
 ```js
 //server.js
-import wapplrMongo from "wapplr-mongo";
+import wapplrPostTypes from "wapplr-posttypes";
 import wapplrServer from "wapplr";
 const wapp = wapplrServer({config: {
         server: {
-            databaseConfig: {
+            database: {
                 mongoConnectionString: "mongodb://localhost/wapplr",
             }
         },
@@ -18,53 +18,37 @@ const wapp = wapplrServer({config: {
         }
     }
 });
-await wapplrMongo({wapp});
-await wapplrPosttypes({wapp});
 
-const highScore = await wapp.server.posttypes.getPosttype({
-    name: "highScore",
+wapplrPostTypes({wapp});
+
+const post = await wapp.server.postTypes.getPostType({
+    name: "post",
     addIfThereIsNot: true,
     config: {
         schemaFields: {
-            username: {type: String},
-            score: {type: Number, default: 0},
-            step: {type: Number, default: 0},
-            time: {type: Number, default: 0},
-            date: {type: Number, default: 0},
-            ip: {type: String, default: "", wapplr: {hidden: true}},
+            title: {type: String},
+            content: {type: String},
         },
         resolvers: function(p = {}) {
             const {modelName, Model} = p;
             const requestName = modelName.slice(0,1).toLowerCase() + modelName.slice(1);
             return {
-                [requestName + "GetBrief"]: {
+                [requestName + "GetAll"]: {
                     type: "["+modelName+"]",
                     resolve: async function(p = {}) {
+                        // eslint-disable-next-line no-unused-vars
                         const {args = {}} = p;
                         const posts = await Model.find().sort({ score: -1, time: 1 });
                         if (!posts || (posts && !posts.length)){
                             return [];
                         }
-                        return posts.slice(0,10)
+                        return posts;
                     }
                 },
-                [requestName + "CreateOne"]: function(TC) {
-                    const defaultCreateOne = TC.getResolver('createOne');
-                    return {
-                        ...defaultCreateOne,
-                        resolve: function (p = {}) {
-                            const {args = {}} = p;
-                            const {record} = args;
-                            if (record) {
-                                record.ip = wapp.response.req.remoteAddress;
-                            }
-                            return defaultCreateOne.resolve(p)
-                        }
-                    }
-                }
             }
         }
-    }})
+    }
+})
 
 wapp.server.listen();
 ```
@@ -73,8 +57,8 @@ wapp.server.listen();
 //client.js
 /*...*/
 const send = wapp.requests.send;
-const response = await send({requestName:"highScoreGetBrief"});
-const highScores = response.highScoreGetBrief;
+const response = await send({requestName:"postGetAll"});
+const posts = response.postGetAll;
 ```
 ## License
 
