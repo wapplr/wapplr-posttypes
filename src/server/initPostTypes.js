@@ -1,23 +1,39 @@
 import {defaultDescriptor} from "./utils";
 import initDatabase from "./initDatabase";
 import getModel from "./getModel";
+import getResolvers from "./getResolvers";
+import getStatusManager from "./getStatusManager";
 
 function getDefaultPostTypesManager(p = {}) {
 
-    async function defaultAddPostType() {
+    const {wapp} = p;
 
-        const args = arguments[0] || {};
-        const {name = "post"} = args;
+    async function defaultAddPostType(p = {}) {
+
+        const {name = "post", ...rest} = p;
+
+        const database = await initDatabase({wapp, name, ...rest});
+        const statusManager = rest.statusManager || getStatusManager({wapp, name, ...rest});
+        const Model = getModel({wapp, name, ...rest, statusManager, database});
+        const resolvers = getResolvers({wapp, name, ...rest, Model, statusManager, database});
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {
                 ...defaultDescriptor,
                 writable: false,
-                value: await initDatabase({...p, ...args})
+                value: database
+            },
+            statusManager: {
+                ...defaultDescriptor,
+                value: statusManager
             },
             Model: {
                 ...defaultDescriptor,
-                value: await getModel({...p, ...args})
+                value: Model
+            },
+            resolvers: {
+                ...defaultDescriptor,
+                value: resolvers
             }
         })
 
@@ -60,12 +76,17 @@ function getDefaultPostTypesManager(p = {}) {
 
 export default function initPostTypes(p = {}) {
     const {wapp} = p;
-    if (!wapp.server.postTypes){
+    const {server} = wapp;
+
+    if (!server.postTypes){
+
         const {postTypesManager = getDefaultPostTypesManager(p)} = p;
-        Object.defineProperty(wapp.server, "postTypes", {
+        Object.defineProperty(server, "postTypes", {
             ...defaultDescriptor,
             value: postTypesManager
         })
+
     }
-    return wapp.server.postTypes;
+
+    return server.postTypes;
 }

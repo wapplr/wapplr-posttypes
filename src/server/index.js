@@ -3,8 +3,7 @@ import initPostTypes from "./initPostTypes";
 
 export default function createServer(p = {}) {
     const wapp = p.wapp || wapplrServer({...p});
-    initPostTypes({wapp, ...p});
-    return wapp;
+    return initPostTypes({wapp, ...p});
 }
 
 export function createMiddleware(p = {}) {
