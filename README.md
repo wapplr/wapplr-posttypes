@@ -22,7 +22,8 @@ const wapp = wapplrServer({config: {
 wapplrPostTypes({wapp});
 
 const titlePattern = /^.{1,250}$/;
-const contentPattern = /^.{1,}$/;
+const contentPattern = /^.{1,2500}$/;
+const contentBriefPattern = /^.{1,500}$/;
 
 const post = await wapp.server.postTypes.getPostType({
     name: "post",
@@ -40,7 +41,12 @@ const post = await wapp.server.postTypes.getPostType({
                     required: true
                 }
             },
-            subtitle: { type: String },
+            subtitle: {
+                type: String,
+                wapplr: {
+                    pattern: titlePattern,
+                }
+            },
             content: {
                 type: String,
                 wapplr: {
@@ -48,7 +54,12 @@ const post = await wapp.server.postTypes.getPostType({
                     required: true
                 }
             },
-            contentBrief: { type: String },
+            contentBrief: {
+                type: String,
+                wapplr: {
+                    pattern: contentBriefPattern,
+                }
+            },
         },
         setSchemaMiddleware: function({schema}){},
         
