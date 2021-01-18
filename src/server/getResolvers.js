@@ -29,9 +29,11 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
 
                 if (!readOnly && !disabled) {
                     if (innerSchema.type === "object" && innerSchema.properties) {
-                        if (typeof value == "object") {
+                        if (value && typeof value == "object") {
                             const filteredInputResponse = filterInputRecord(value, innerSchema, nextKey);
-                            filteredRecord[key] = filteredInputResponse.record;
+                            if (filteredInputResponse.record && typeof filteredInputResponse.record == "object") {
+                                filteredRecord[key] = filteredInputResponse.record;
+                            }
                             if (filteredInputResponse.allRequiredFieldsAreProvided === false){
                                 allRequiredFieldsAreProvided = false;
                                 missingFields.push(...filteredInputResponse.missingFields)
@@ -47,23 +49,32 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                             }
                         }
                     } else {
-                        if (innerSchema.type && typeof value === innerSchema.type) {
-                            if (pattern && value.match(pattern)) {
+                        if ((value !== null && value !== undefined && innerSchema.type && typeof value === innerSchema.type)) {
+
+                            if ((pattern && value.toString().match(pattern)) || !pattern) {
                                 filteredRecord[key] = value;
-                            } else if (!pattern){
-                                filteredRecord[key] = value;
-                            } else if (required){
-                                allRequiredFieldsAreProvided = false;
-                                missingFields.push(nextKey);
-                                if (pattern){
-                                    allFieldsAreValid = false;
-                                    invalidFields.push(nextKey);
+                            } else {
+
+                                allFieldsAreValid = false;
+                                invalidFields.push(nextKey);
+
+                                if (required){
+                                    allRequiredFieldsAreProvided = false;
+                                    missingFields.push(nextKey);
                                 }
+
                             }
+
                         } else {
+                            if ((pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
+                                allFieldsAreValid = false;
+                                invalidFields.push(nextKey);
+                            }
                             if (required){
                                 allRequiredFieldsAreProvided = false;
                                 missingFields.push(nextKey)
+                            } else if (value === null) {
+                                filteredRecord[key] = value;
                             }
                         }
                     }
@@ -170,7 +181,6 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         };
 
     }
-
 
 
     function filterOutputRecord(record, schema, isAdmin, isAuthorOrAdmin) {
@@ -324,7 +334,7 @@ export default function getResolvers(p = {}) {
         new: {
             extendResolver: "createOne",
             resolve: async function ({input}){
-                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, allFieldsAreValid} = input;
+                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, missingFields, allFieldsAreValid, invalidFields} = input;
                 const {record} = args;
 
                 if (!editorIsValidated){
@@ -335,13 +345,13 @@ export default function getResolvers(p = {}) {
 
                 if (!allFieldsAreValid){
                     return {
-                        error: {message: messages.invalidData + " [" +input.invalidFields.join(", ") +"]"},
+                        error: {message: messages.invalidData + " [" +invalidFields.join(", ") +"]"},
                     }
                 }
 
                 if (!allRequiredFieldsAreProvided){
                     return {
-                        error: {message: messages.missingData + " [" +input.missingFields.join(", ") +"]"},
+                        error: {message: messages.missingData + " [" +missingFields.join(", ") +"]"},
                     }
                 }
 
@@ -368,7 +378,17 @@ export default function getResolvers(p = {}) {
         save: {
             extendResolver: "updateById",
             resolve: async function ({input}){
-                const {args, post, editorIsAuthorOrAdmin, editorIsAdmin, editorIsAuthor, allRequiredFieldsAreProvided, allFieldsAreValid} = input;
+
+                const {
+                    args,
+                    post,
+                    editorIsAuthorOrAdmin,
+                    editorIsAdmin,
+                    editorIsAuthor,
+                    allFieldsAreValid,
+                    invalidFields
+                } = input;
+
                 const {record} = args;
 
                 if (!post){
@@ -385,13 +405,7 @@ export default function getResolvers(p = {}) {
 
                 if (!allFieldsAreValid){
                     return {
-                        error: {message: messages.invalidData + " [" +input.invalidFields.join(", ") +"]"},
-                    }
-                }
-
-                if (!allRequiredFieldsAreProvided){
-                    return {
-                        error: {message: messages.missingData + " [" +input.missingFields.join(", ") +"]"},
+                        error: {message: messages.invalidData + " [" +invalidFields.join(", ") +"]"},
                     }
                 }
 
@@ -400,10 +414,14 @@ export default function getResolvers(p = {}) {
                     function recursiveApply(post, record) {
                         Object.keys(record).forEach(function (key) {
                             if (record[key] && typeof record[key] == "object") {
-                                recursiveApply(post[key] || {}, record[key])
+                                if (!post[key]) {
+                                    post[key] = {};
+                                }
+                                recursiveApply(post[key], record[key])
                             } else {
                                 post[key] = record[key];
                             }
+
                         })
                     }
 
