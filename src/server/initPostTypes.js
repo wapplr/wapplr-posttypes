@@ -86,6 +86,8 @@ export default function initPostTypes(p = {}) {
             value: postTypesManager
         })
 
+        Object.defineProperty(server.postTypes, "wapp", {...defaultDescriptor, writable: false, enumerable: false, value: wapp});
+
     }
 
     return server.postTypes;

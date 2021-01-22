@@ -8,7 +8,7 @@ export default function createServer(p = {}) {
 
 export function createMiddleware(p = {}) {
     return function postTypesMiddleware(req, res, next) {
-        const wapp = req.wapp || p.wapp || createServer(p);
+        const wapp = req.wapp || p.wapp || createServer(p).wapp;
         initPostTypes({wapp, ...p});
         next();
     }
@@ -28,7 +28,7 @@ const defaultConfig = {
 
 export async function run(p = defaultConfig) {
 
-    const wapp = await createServer(p);
+    const wapp = await createServer(p).wapp;
     const globals = wapp.globals;
     const {DEV} = globals;
 

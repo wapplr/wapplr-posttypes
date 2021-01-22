@@ -6,7 +6,7 @@ export default function createStatusManager(p = {}) {
     const {wapp, name} = p;
     const server = wapp;
 
-    const globalConfig = (server.settings && server.settings.status) ? server.settings.status : {};
+    const globalConfig = (server.config && server.config.status) ? server.config.status : {};
     const globalStatusConfigForPostType = globalConfig[name] || {};
     const config = (p.config) ? {...globalStatusConfigForPostType, ...p.config} : {...globalStatusConfigForPostType};
 

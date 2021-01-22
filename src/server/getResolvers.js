@@ -138,7 +138,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
     async function getInput(p = {}, inputPost) {
 
         const {req, res, args = {}} = p;
-        const reqUser = req.user;
+        const reqUser = req.wapp.request.user;
         const {record} = args;
 
         const findProps = getFindProps(args);
@@ -213,8 +213,8 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         const {req, res, args, response, userBeforeRequest, inputBeforeRequest} = p;
 
         const sameUser = (
-            (userBeforeRequest && userBeforeRequest._id && req.user && req.user._id.toString() === userBeforeRequest._id.toString()) ||
-            (!userBeforeRequest && !req.user)
+            (userBeforeRequest && userBeforeRequest._id && req.wapp.request.user && req.wapp.request.user._id.toString() === userBeforeRequest._id.toString()) ||
+            (!userBeforeRequest && !req.wapp.request.user)
         )
 
         const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args});
@@ -287,7 +287,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
 
                     const {req, res} = context;
 
-                    const reqUser = req.user;
+                    const reqUser = req.wapp.request.user;
                     const input = await getInput({req, res, args});
 
                     const response = await resolve({...p, input}) || {}
