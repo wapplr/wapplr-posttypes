@@ -92,23 +92,17 @@ const post = await wapp.server.postTypes.getPostType({
             postNotFound: "Post not found",
             accessDenied: "You do not have permission to perform that operation"
         },
-        
-        resolvers: function(p = {}) {
-            const {modelName, Model} = p;
-            return {
-                ["getAll"]: {
-                    type: "["+modelName+"]",
-                    resolve: async function(p = {}) {
-                        // eslint-disable-next-line no-unused-vars
-                        const {args = {}} = p;
-                        const posts = await Model.find();
-                        if (!posts || (posts && !posts.length)){
-                            return [];
-                        }
-                        return posts;
+
+        resolvers: {
+            getAll: function ({Model}) {
+                return {
+                    extendResolver: "findMany",
+                    args: null,
+                    resolve: async function({input}) {
+                        return await Model.find().sort({score: -1, time: 1});
                     }
-                },
-            }
+                }
+            },
         }
     }
 })

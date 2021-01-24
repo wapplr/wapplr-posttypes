@@ -138,7 +138,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
     async function getInput(p = {}, inputPost) {
 
         const {req, res, args = {}} = p;
-        const reqUser = req.wapp.request.user;
+        const reqUser = req.wappRequest.user;
         const {record} = args;
 
         const findProps = getFindProps(args);
@@ -213,8 +213,8 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         const {req, res, args, response, userBeforeRequest, inputBeforeRequest} = p;
 
         const sameUser = (
-            (userBeforeRequest && userBeforeRequest._id && req.wapp.request.user && req.wapp.request.user._id.toString() === userBeforeRequest._id.toString()) ||
-            (!userBeforeRequest && !req.wapp.request.user)
+            (userBeforeRequest && userBeforeRequest._id && req.wappRequest.user && req.wappRequest.user._id.toString() === userBeforeRequest._id.toString()) ||
+            (!userBeforeRequest && !req.wappRequest.user)
         )
 
         const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args});
@@ -264,7 +264,9 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
 
         return function getResolver(TC) {
 
-            const {extendResolver} = resolverProperties;
+            const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager}) : {...resolverProperties};
+
+            const {extendResolver} = rP;
 
             let defaultResolver;
 
@@ -272,14 +274,14 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 defaultResolver = TC.getResolver(extendResolver)
             } catch (e){}
 
-            const resolve = resolverProperties.resolve || (defaultResolver && defaultResolver.resolve) || async function () { return null }
+            const resolve = rP.resolve || (defaultResolver && defaultResolver.resolve) || async function () { return null }
 
             return {
                 name: resolverName,
                 type: (defaultResolver && defaultResolver.getType()) || TC,
                 args: (defaultResolver && defaultResolver.args) || null,
                 kind: (defaultResolver && defaultResolver.kind) || "query",
-                ...resolverProperties,
+                ...rP,
 
                 resolve: async function(p = {}) {
 
@@ -287,7 +289,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
 
                     const {req, res} = context;
 
-                    const reqUser = req.wapp.request.user;
+                    const reqUser = req.wappRequest.user;
                     const input = await getInput({req, res, args});
 
                     const response = await resolve({...p, input}) || {}
