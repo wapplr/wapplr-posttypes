@@ -34,7 +34,7 @@ export default function getModel(p = {}) {
     const schemaFields = {
         _id: {
             type: mongoose.Schema.Types.ObjectId,
-            wapplr: { readOnly: true }
+            wapplr: { readOnly: true, formData: { hidden: true } }
         },
         _createdDate: {
             type: mongoose.Schema.Types.Date,

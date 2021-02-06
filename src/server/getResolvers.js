@@ -1,13 +1,14 @@
 import defaultMessages from "./defaultMessages";
 import mongoose from "mongoose";
 import wapplrGraphql from "wapplr-graphql";
+import { GraphQLError } from "graphql-compose/lib/graphql";
 
-export function getHelpersForResolvers({wapp, Model, statusManager}) {
+export function getHelpersForResolvers({wapp, Model, statusManager, messages = defaultMessages}) {
 
     const jsonSchema = Model.getJsonSchema();
 
 
-    function filterInputRecord(record, schema, parentKey) {
+    function filterInputRecord(record, parentKey, schema = jsonSchema) {
 
         const filteredRecord = {};
         let allRequiredFieldsAreProvided = !!(record);
@@ -24,13 +25,14 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 const disabled = !!(innerSchema.wapplr && innerSchema.wapplr.disabled);
                 const required = !!(innerSchema.wapplr && innerSchema.wapplr.required);
                 const pattern = (innerSchema.wapplr && innerSchema.wapplr.pattern) ? innerSchema.wapplr.pattern : null;
+                const validationMessage = (innerSchema.wapplr && typeof innerSchema.wapplr.validationMessage == "string") ? innerSchema.wapplr.validationMessage : "";
 
                 const nextKey = (parentKey) ? parentKey + "." + key : key;
 
                 if (!readOnly && !disabled) {
                     if (innerSchema.type === "object" && innerSchema.properties) {
                         if (value && typeof value == "object") {
-                            const filteredInputResponse = filterInputRecord(value, innerSchema, nextKey);
+                            const filteredInputResponse = filterInputRecord(value, nextKey, innerSchema);
                             if (filteredInputResponse.record && typeof filteredInputResponse.record == "object") {
                                 filteredRecord[key] = filteredInputResponse.record;
                             }
@@ -45,7 +47,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                         } else {
                             if (required || JSON.stringify(innerSchema).match(/"required":true/g)){
                                 allRequiredFieldsAreProvided = false;
-                                missingFields.push(nextKey)
+                                missingFields.push({path: "record."+nextKey, message: messages.missingData})
                             }
                         }
                     } else {
@@ -56,11 +58,11 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                             } else {
 
                                 allFieldsAreValid = false;
-                                invalidFields.push(nextKey);
+                                invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
 
-                                if (required){
+                                if (required && !value){
                                     allRequiredFieldsAreProvided = false;
-                                    missingFields.push(nextKey);
+                                    missingFields.push({path: "record."+nextKey, message: messages.missingData});
                                 }
 
                             }
@@ -68,11 +70,11 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                         } else {
                             if ((pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
                                 allFieldsAreValid = false;
-                                invalidFields.push(nextKey);
+                                invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
                             }
                             if (required){
                                 allRequiredFieldsAreProvided = false;
-                                missingFields.push(nextKey)
+                                missingFields.push({path: "record."+nextKey, message: messages.missingData});
                             } else if (value === null) {
                                 filteredRecord[key] = value;
                             }
@@ -83,12 +85,17 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
             })
         }
 
+        const mergedErrorFields = [...missingFields, ...invalidFields.filter(function (invalidField) {
+            return !(missingFields.filter(function (missingField) { return (missingField.path === invalidField.path) }).length)
+        })];
+
         return {
             record: (Object.keys(filteredRecord).length || typeof record == "object") ? filteredRecord : null,
             allRequiredFieldsAreProvided,
             missingFields,
             allFieldsAreValid,
-            invalidFields
+            invalidFields,
+            mergedErrorFields
         }
     }
 
@@ -111,8 +118,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 findProps = {}
             }
             findProps._id = _id;
-        }
-        if (email){
+        } else if (email){
             if (!findProps){
                 findProps = {}
             }
@@ -145,19 +151,20 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         const post = inputPost || await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
-        const author = post && post._author;
+        const author = (post && post._author) ? post._author : null;
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && statusManager.isFeatured(editor));
         const editorIsNotDeleted = !!(editor && editor._id && statusManager.isNotDeleted(editor));
         const editorIsValidated = !!(editor && editor._id && statusManager.isValidated(editor));
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
 
-        const filteredRecordResponse = filterInputRecord(record, jsonSchema);
+        const filteredRecordResponse = filterInputRecord(record);
         const filteredRecord = filteredRecordResponse.record;
         const allRequiredFieldsAreProvided = filteredRecordResponse.allRequiredFieldsAreProvided;
         const missingFields = filteredRecordResponse.missingFields;
         const allFieldsAreValid = filteredRecordResponse.allFieldsAreValid;
         const invalidFields = filteredRecordResponse.invalidFields;
+        const mergedErrorFields = filteredRecordResponse.mergedErrorFields;
 
         const filteredArgs = getFilteredArgs(args, filteredRecord);
 
@@ -177,13 +184,14 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
             allRequiredFieldsAreProvided,
             missingFields,
             allFieldsAreValid,
-            invalidFields
+            invalidFields,
+            mergedErrorFields
         };
 
     }
 
 
-    function filterOutputRecord(record, schema, isAdmin, isAuthorOrAdmin) {
+    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
             Object.keys(schema.properties).forEach(function (key) {
@@ -196,7 +204,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
                     if (innerSchema.type === "object" && innerSchema.properties) {
                         if (typeof value == "object") {
-                            filteredRecord[key] = filterOutputRecord(value, innerSchema, isAdmin, isAuthorOrAdmin)
+                            filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, innerSchema)
                         }
                     } else {
                         filteredRecord[key] = value;
@@ -234,9 +242,9 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
             const {record} = responseToObject;
 
             if (record){
-                filteredResponse.record = filterOutputRecord(record, jsonSchema, editorIsAdmin, editorIsAuthorOrAdmin);
+                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin);
             } else if (responseToObject._id){
-                filteredResponse = filterOutputRecord(responseToObject, jsonSchema, editorIsAdmin, editorIsAuthorOrAdmin);
+                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin);
             }
 
         } else if (response && typeof response == "object" && typeof response.length == "number") {
@@ -245,7 +253,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
                     const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args}, post);
-                    return filterOutputRecord(post, jsonSchema, editorIsAdmin, editorIsAuthorOrAdmin)
+                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin)
                 }
                 return post;
             }))
@@ -253,6 +261,49 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         }
 
         return filteredResponse;
+
+    }
+
+    function composeValidationError(p, response) {
+
+        if (response && response.error && response.error.errors){
+
+            const error = {
+                name: "ValidationError",
+                message: response.error.message,
+                errors: [
+                    ...response.error.errors.map(function (error, i) {
+
+                        const message = error.message || response.error.message;
+                        const path = error.path || "";
+
+                        return {
+                            message,
+                            path,
+                        }
+
+                    })
+                ]
+            };
+
+            if (p.projection?.error) {
+                response.error = error;
+            } else {
+
+                delete error.message;
+                throw new GraphQLError(
+                    response.error.message,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    error
+                );
+
+            }
+
+        }
 
     }
 
@@ -274,7 +325,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                 defaultResolver = TC.getResolver(extendResolver)
             } catch (e){}
 
-            const resolve = rP.resolve || (defaultResolver && defaultResolver.resolve) || async function () { return null }
+            const resolve = rP.resolve || (defaultResolver && defaultResolver.resolve) || async function () { return null };
 
             return {
                 name: resolverName,
@@ -293,6 +344,8 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
                     const input = await getInput({req, res, args});
 
                     const response = await resolve({...p, input}) || {}
+
+                    composeValidationError(p, response);
 
                     return await getOutput({req, res, args, response, userBeforeRequest: reqUser, inputBeforeRequest: input})
 
@@ -314,7 +367,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager}) {
         }));
     }
 
-    return {createResolvers, createGetResolverFunction, getInput, getOutput};
+    return {createResolvers, createGetResolverFunction, getInput, getOutput, filterOutputRecord};
 
 }
 
@@ -336,7 +389,7 @@ export default function getResolvers(p = {}) {
         new: {
             extendResolver: "createOne",
             resolve: async function ({input}){
-                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, missingFields, allFieldsAreValid, invalidFields} = input;
+                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, missingFields, allFieldsAreValid, invalidFields, mergedErrorFields} = input;
                 const {record} = args;
 
                 if (!editorIsValidated){
@@ -345,15 +398,12 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!allFieldsAreValid){
+                if (!allFieldsAreValid || !allRequiredFieldsAreProvided){
                     return {
-                        error: {message: messages.invalidData + " [" +invalidFields.join(", ") +"]"},
-                    }
-                }
-
-                if (!allRequiredFieldsAreProvided){
-                    return {
-                        error: {message: messages.missingData + " [" +missingFields.join(", ") +"]"},
+                        error: {
+                            message: (allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
+                            errors: mergedErrorFields
+                        },
                     }
                 }
 
@@ -388,7 +438,8 @@ export default function getResolvers(p = {}) {
                     editorIsAdmin,
                     editorIsAuthor,
                     allFieldsAreValid,
-                    invalidFields
+                    allRequiredFieldsAreProvided,
+                    mergedErrorFields
                 } = input;
 
                 const {record} = args;
@@ -405,9 +456,12 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!allFieldsAreValid){
+                if (!allFieldsAreValid || !allRequiredFieldsAreProvided){
                     return {
-                        error: {message: messages.invalidData + " [" +invalidFields.join(", ") +"]"},
+                        error: {
+                            message: (allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
+                            errors: mergedErrorFields
+                        },
                     }
                 }
 
@@ -585,7 +639,7 @@ export default function getResolvers(p = {}) {
         ...(config.resolvers) ? config.resolvers : {}
     }
 
-    const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager});
+    const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, messages});
 
     return wapp.server.graphql.addResolversToTC({resolvers: createResolvers(resolvers), TCName: Model.modelName})
 
