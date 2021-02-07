@@ -99,7 +99,7 @@ const post = await wapp.server.postTypes.getPostType({
                     extendResolver: "findMany",
                     args: null,
                     resolve: async function({input}) {
-                        return await Model.find().sort({score: -1, time: 1});
+                        return await Model.find();
                     }
                 }
             },
