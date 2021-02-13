@@ -343,7 +343,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                     const reqUser = req.wappRequest.user;
                     const input = await getInput({req, res, args});
 
-                    const response = await resolve({...p, input}) || {}
+                    const response = await resolve({...p, input, resolverProperties}) || {}
 
                     composeValidationError(p, response);
 
@@ -428,7 +428,15 @@ export default function getResolvers(p = {}) {
             },
         },
         save: {
-            extendResolver: "updateById",
+            extendResolver: "createOne",
+            args: function (TC, schemaComposer) {
+                const defaultResolver = TC.getResolver("createOne");
+                const defaultRecord = defaultResolver.args.record;
+                return {
+                    _id: "MongoID!",
+                    record: defaultRecord
+                }
+            },
             resolve: async function ({input}){
 
                 const {
@@ -505,6 +513,11 @@ export default function getResolvers(p = {}) {
         },
         delete: {
             extendResolver: "updateById",
+            args: function (TC, schemaComposer) {
+                return {
+                    _id: "MongoID!",
+                }
+            },
             resolve: async function ({input}){
                 const {post, editorIsAuthorOrAdmin} = input;
 
@@ -536,6 +549,11 @@ export default function getResolvers(p = {}) {
         },
         approve: {
             extendResolver: "updateById",
+            args: function (TC, schemaComposer) {
+                return {
+                    _id: "MongoID!",
+                }
+            },
             resolve: async function ({input}){
                 const {post, editorIsAdmin} = input;
 
@@ -567,6 +585,11 @@ export default function getResolvers(p = {}) {
         },
         featured: {
             extendResolver: "updateById",
+            args: function (TC, schemaComposer) {
+                return {
+                    _id: "MongoID!",
+                }
+            },
             resolve: async function ({input}){
                 const {post, editorIsAdmin} = input;
 
@@ -598,6 +621,11 @@ export default function getResolvers(p = {}) {
         },
         ban: {
             extendResolver: "updateById",
+            args: function (TC, schemaComposer) {
+                return {
+                    _id: "MongoID!",
+                }
+            },
             resolve: async function ({input}){
                 const {post, editorIsAdmin} = input;
 
