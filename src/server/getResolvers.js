@@ -191,7 +191,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
     }
 
 
-    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, schema = jsonSchema) {
+    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, isNotDeleted, isBanned, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
             Object.keys(schema.properties).forEach(function (key) {
@@ -202,12 +202,16 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 const isPrivateForAuthor = !!(innerSchema.wapplr && innerSchema.wapplr.private === "author");
 
                 if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
-                    if (innerSchema.type === "object" && innerSchema.properties) {
-                        if (typeof value == "object") {
-                            filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, innerSchema)
+                    if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
+                        if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
+                            if (innerSchema.type === "object" && innerSchema.properties) {
+                                if (typeof value == "object") {
+                                    filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, isNotDeleted, isBanned, innerSchema)
+                                }
+                            } else {
+                                filteredRecord[key] = value;
+                            }
                         }
-                    } else {
-                        filteredRecord[key] = value;
                     }
                 }
             })
@@ -242,9 +246,9 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
             const {record} = responseToObject;
 
             if (record){
-                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin);
+                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
             } else if (responseToObject._id){
-                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin);
+                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
 
         } else if (response && typeof response == "object" && typeof response.length == "number") {
@@ -253,7 +257,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
                     const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args}, post);
-                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin)
+                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(post), statusManager.isBanned(post))
                 }
                 return post;
             }))
@@ -383,6 +387,7 @@ export default function getResolvers(p = {}) {
 
     const {
         messages = defaultMessages,
+        masterCode = ""
     } = config;
 
     const resolvers = {
@@ -401,7 +406,7 @@ export default function getResolvers(p = {}) {
                 if (!allFieldsAreValid || !allRequiredFieldsAreProvided){
                     return {
                         error: {
-                            message: (allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
+                            message: (!allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
                             errors: mergedErrorFields
                         },
                     }
@@ -458,7 +463,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAuthorOrAdmin){
+                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || statusManager.isFeatured(post)){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -493,7 +498,7 @@ export default function getResolvers(p = {}) {
 
                     if (editorIsAdmin && statusManager.isBanned(post)){
                         statusManager.setRestoreStatusByAdmin(post);
-                    } else if (editorIsAuthor && statusManager.isDeleted(post)){
+                    } else if (editorIsAuthorOrAdmin && statusManager.isDeleted(post)){
                         statusManager.setRestoreStatusByAuthor(post);
                     } else if (!statusManager.isFeatured(post)){
                         statusManager.setNewStatus(post);
@@ -519,7 +524,7 @@ export default function getResolvers(p = {}) {
                 }
             },
             resolve: async function ({input}){
-                const {post, editorIsAuthorOrAdmin} = input;
+                const {post, editorIsAuthorOrAdmin, editorIsAdmin} = input;
 
                 if (!post){
                     return {
@@ -527,7 +532,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAuthorOrAdmin){
+                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || statusManager.isFeatured(post)){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -563,7 +568,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAdmin){
+                if (!editorIsAdmin || statusManager.isFeatured(post)){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -599,7 +604,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAdmin){
+                if (!editorIsAdmin || !statusManager.isApproved(post)){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -607,6 +612,57 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.setFeaturedStatus(post)
+                    const savedPost = await post.save();
+                    return {
+                        record: savedPost,
+                    }
+                } catch (e){
+                    return {
+                        error: {message: e.message || messages.savePostDefaultFail},
+                    };
+                }
+
+            },
+        },
+        removeFeatured: {
+            extendResolver: "updateById",
+            args: function (TC, schemaComposer) {
+                return {
+                    _id: "MongoID!",
+                    masterCode: "String!"
+                }
+            },
+            wapplr: {
+                masterCode: {
+                    wapplr: {
+                        pattern: Model.getJsonSchema({doNotDeleteDisabledFields: true}).properties.password?.wapplr?.pattern,
+                        validationMessage: messages.validationPassword,
+                        formData: {
+                            label: "Master code",
+                            type: "password"
+                        }
+                    }
+                },
+            },
+            resolve: async function ({input}){
+                const {post, editorIsAdmin, args} = input;
+
+                const inputMasterCode = args.masterCode || "";
+
+                if (!post){
+                    return {
+                        error: {message: messages.postNotFound},
+                    }
+                }
+
+                if (!editorIsAdmin || !statusManager.isFeatured(post) || masterCode !== inputMasterCode){
+                    return {
+                        error: {message: messages.accessDenied},
+                    }
+                }
+
+                try {
+                    statusManager.removeFeaturedStatus(post, masterCode);
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -635,7 +691,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAdmin){
+                if (!editorIsAdmin || statusManager.isFeatured(post)){
                     return {
                         error: {message: messages.accessDenied},
                     }

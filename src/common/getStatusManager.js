@@ -1,14 +1,8 @@
-import defaultMessages from "./defaultMessages";
 import {defaultDescriptor} from "./utils";
 
 export default function createStatusManager(p = {}) {
 
-    const {wapp, name} = p;
-    const server = wapp;
-
-    const globalConfig = (server.config && server.config.status) ? server.config.status : {};
-    const globalStatusConfigForPostType = globalConfig[name] || {};
-    const config = (p.config) ? {...globalStatusConfigForPostType, ...p.config} : {...globalStatusConfigForPostType};
+    const {config = {}} = p;
 
     const {
         statuses = {
@@ -21,7 +15,6 @@ export default function createStatusManager(p = {}) {
         },
         statusField = "_status",
         requiredDataForStatus = {},
-        messages = defaultMessages
     } = config;
 
     //internal functions
@@ -132,7 +125,7 @@ export default function createStatusManager(p = {}) {
         return newStatus;
     }
 
-    function setApproveStatus({doc, callback}) {
+    function setApproveStatus(doc) {
         const {getMinStatus} = statusManager;
         const currentStatus = (doc[statusField] && !isNaN(Number(doc[statusField])) ) ? Number(doc[statusField]) : 0;
         let newStatus = currentStatus || statusManager.statuses["created"];
@@ -157,12 +150,31 @@ export default function createStatusManager(p = {}) {
         return newStatus;
     }
 
+    function removeFeaturedStatus(doc) {
+        const currentStatus = (doc[statusField] && !isNaN(Number(doc[statusField])) ) ? Number(doc[statusField]) : 0;
+        let newStatus = currentStatus || statusManager.statuses["created"];
+        if (currentStatus === getFeaturedStatus()) {
+            newStatus = statusManager.statuses["approved"];
+        }
+        doc[statusField] = newStatus;
+        return newStatus;
+    }
 
 
     function isFeatured(doc) {
         if (doc && doc._id) {
             const currentStatus = (doc[statusField] && !isNaN(Number(doc[statusField])) ) ? Number(doc[statusField]) : 0;
             if (currentStatus >= statusManager.statuses["featured"]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isApproved(doc) {
+        if (doc && doc._id) {
+            const currentStatus = (doc[statusField] && !isNaN(Number(doc[statusField])) ) ? Number(doc[statusField]) : 0;
+            if (currentStatus >= statusManager.statuses["approved"]) {
                 return true;
             }
         }
@@ -220,33 +232,6 @@ export default function createStatusManager(p = {}) {
     function getFeaturedStatus() {
         return statusManager.statuses["featured"];
     }
-    function getStatusData(doc) {
-        if (doc && doc._id){
-
-            const deleteOrRestorePoint = statusManager.statuses["created"];
-            const currentStatus = doc[statusField] || deleteOrRestorePoint;
-            const deleteOrRestore = (currentStatus < deleteOrRestorePoint) ? "restore" : "delete";
-
-            const approveEnable = (currentStatus > statusManager.statuses["requiredData"]-1 && currentStatus < statusManager.statuses["approved"]);
-            const featuredEnable = (currentStatus > statusManager.statuses["requiredData"]-1 && currentStatus < statusManager.statuses["featured"]);
-            const banEnable = (currentStatus > statusManager.statuses["banned"]);
-
-            let statusName = messages.statusCreated;
-
-            Object.keys(statusManager.statuses).forEach(function(psk){
-                if (statusManager.statuses[psk] === currentStatus) {
-                    statusName = messages["status" + statusManager.statuses[psk].slice(0,1).toUpperCase()+statusManager.statuses[psk].slice(1)];
-                }
-            });
-
-            return {statusName, status:doc[statusField], deleteOrRestore, approveEnable, featuredEnable, banEnable}
-
-        }
-
-        return {statusName:"not found", status: statusManager.statuses["banned"]-1};
-    }
-
-
 
     const statusManager = Object.create(Object.prototype, {
 
@@ -294,10 +279,18 @@ export default function createStatusManager(p = {}) {
             ...defaultDescriptor,
             value: setFeaturedStatus
         },
+        removeFeaturedStatus: {
+            ...defaultDescriptor,
+            value: removeFeaturedStatus
+        },
 
         isFeatured: {
             ...defaultDescriptor,
             value: isFeatured
+        },
+        isApproved: {
+            ...defaultDescriptor,
+            value: isApproved
         },
         isNotDeleted: {
             ...defaultDescriptor,
@@ -315,10 +308,6 @@ export default function createStatusManager(p = {}) {
             ...defaultDescriptor,
             value: isBanned
         },
-        getStatusData: {
-            ...defaultDescriptor,
-            value: getStatusData
-        },
 
         getDefaultStatus: {
             ...defaultDescriptor,
@@ -331,7 +320,7 @@ export default function createStatusManager(p = {}) {
         getFeaturedStatus: {
             ...defaultDescriptor,
             value: getFeaturedStatus
-        },
+        }
     })
 
     return statusManager

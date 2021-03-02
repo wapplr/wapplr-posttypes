@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import {defaultDescriptor} from "../common/utils";
 
 export default function getModel(p = {}) {
 
@@ -53,7 +54,101 @@ export default function getModel(p = {}) {
         ...addSchemaFields
     };
 
-    const modelSchema = new Schema(schemaFields);
+    const modelSchema = new Schema(schemaFields, {
+        toObject: { virtuals: true },
+        toJSON: { virtuals: true }
+    });
+
+    Object.defineProperty(modelSchema, "virtualToGraphQl", {
+        ...defaultDescriptor,
+        enumerable: false,
+        value: function _virtual({name, get, set, options = {}}) {
+            const virtual = modelSchema.virtual(name);
+            if (get){
+                virtual.get(get);
+            }
+            if (set){
+                virtual.get(set);
+            }
+            Object.keys(options).forEach(function (key) {
+                if (typeof virtual[key] == "undefined") {
+                    virtual[key] = options[key];
+                }
+            })
+            if (!virtual.path) {
+                virtual.path = name;
+            }
+            if (!virtual.instance) {
+                virtual.instance = "String";
+            }
+            if (!virtual.wapplr) {
+                virtual.wapplr = {
+                    readOnly: true
+                };
+            }
+        }
+    })
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isFeatured",
+        get: function () {
+            return statusManager.isFeatured(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isApproved",
+        get: function () {
+            return statusManager.isApproved(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
+
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isDeleted",
+        get: function () {
+            return statusManager.isDeleted(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isNotDeleted",
+        get: function () {
+            return statusManager.isNotDeleted(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isBanned",
+        get: function () {
+            return statusManager.isBanned(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
+
+    modelSchema.virtualToGraphQl({
+        name: statusManager.statusField+"_isValidated",
+        get: function () {
+            return statusManager.isValidated(this);
+        },
+        options: {
+            instance: "Boolean"
+        }
+    })
 
     modelSchema.add(schemaFields);
 

@@ -1,8 +1,8 @@
-import {defaultDescriptor} from "./utils";
+import {defaultDescriptor} from "../common/utils";
 import initDatabase from "./initDatabase";
 import getModel from "./getModel";
 import getResolvers from "./getResolvers";
-import getStatusManager from "./getStatusManager";
+import getStatusManager from "../common/getStatusManager";
 
 function getDefaultPostTypesManager(p = {}) {
 
