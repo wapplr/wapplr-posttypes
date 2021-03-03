@@ -25,7 +25,7 @@
         "wapplr-posttypes build": "wapplr-cli build",
         "wapplr-posttypes clean": "wapplr-cli clean"
     },
-    "version": "1.0.17",
+    "version": "1.0.18",
     "files": [
         "dist/*"
     ],

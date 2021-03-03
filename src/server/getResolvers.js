@@ -394,12 +394,12 @@ export default function getResolvers(p = {}) {
         new: {
             extendResolver: "createOne",
             resolve: async function ({input}){
-                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, missingFields, allFieldsAreValid, invalidFields, mergedErrorFields} = input;
+                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, allFieldsAreValid, mergedErrorFields} = input;
                 const {record} = args;
 
                 if (!editorIsValidated){
                     return {
-                        error: messages.lowStatusLevel
+                        error: {message: messages.lowStatusLevel}
                     }
                 }
 
@@ -449,7 +449,6 @@ export default function getResolvers(p = {}) {
                     post,
                     editorIsAuthorOrAdmin,
                     editorIsAdmin,
-                    editorIsAuthor,
                     allFieldsAreValid,
                     allRequiredFieldsAreProvided,
                     mergedErrorFields
@@ -593,10 +592,25 @@ export default function getResolvers(p = {}) {
             args: function (TC, schemaComposer) {
                 return {
                     _id: "MongoID!",
+                    masterCode: "String!"
                 }
             },
+            wapplr: {
+                masterCode: {
+                    wapplr: {
+                        pattern: Model.getJsonSchema({doNotDeleteDisabledFields: true}).properties.password?.wapplr?.pattern,
+                        validationMessage: messages.validationPassword,
+                        formData: {
+                            label: "Master code",
+                            type: "password"
+                        }
+                    }
+                },
+            },
             resolve: async function ({input}){
-                const {post, editorIsAdmin} = input;
+                const {post, editorIsAdmin, args} = input;
+
+                const inputMasterCode = args.masterCode || "";
 
                 if (!post){
                     return {
@@ -604,7 +618,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAdmin || !statusManager.isApproved(post)){
+                if (!editorIsAdmin || !statusManager.isApproved(post) || masterCode !== inputMasterCode){
                     return {
                         error: {message: messages.accessDenied},
                     }
