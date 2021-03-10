@@ -35,7 +35,7 @@ function getDefaultPostTypesManager(p = {}) {
                 ...defaultDescriptor,
                 value: resolvers
             }
-        })
+        });
 
         Object.defineProperty(postTypesManager.postTypes, name, {
             ...defaultDescriptor,
@@ -68,7 +68,7 @@ function getDefaultPostTypesManager(p = {}) {
             ...defaultDescriptor,
             value: {}
         }
-    })
+    });
 
     return postTypesManager;
 
@@ -84,7 +84,7 @@ export default function initPostTypes(p = {}) {
         Object.defineProperty(server, "postTypes", {
             ...defaultDescriptor,
             value: postTypesManager
-        })
+        });
 
         Object.defineProperty(server.postTypes, "wapp", {...defaultDescriptor, writable: false, enumerable: false, value: wapp});
 

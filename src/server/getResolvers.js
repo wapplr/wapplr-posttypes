@@ -132,7 +132,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
         const filteredArgs = {
             ...args,
-        }
+        };
 
         if (filteredRecord){
             filteredArgs.record = filteredRecord;
@@ -151,12 +151,13 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
         const post = inputPost || await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
-        const author = (post && post._author) ? post._author : null;
+        const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : null;
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && statusManager.isFeatured(editor));
         const editorIsNotDeleted = !!(editor && editor._id && statusManager.isNotDeleted(editor));
         const editorIsValidated = !!(editor && editor._id && statusManager.isValidated(editor));
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
+        const authorIsNotDeleted = !!(author && author._id && statusManager.isNotDeleted({_id: author, [statusManager.statusField]: post["_author"+statusManager.statusField]}));
 
         const filteredRecordResponse = filterInputRecord(record);
         const filteredRecord = filteredRecordResponse.record;
@@ -181,6 +182,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
             editorIsAuthorOrAdmin,
             editorIsNotDeleted,
             editorIsValidated,
+            authorIsNotDeleted,
             allRequiredFieldsAreProvided,
             missingFields,
             allFieldsAreValid,
@@ -191,7 +193,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
     }
 
 
-    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, isNotDeleted, isBanned, schema = jsonSchema) {
+    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
             Object.keys(schema.properties).forEach(function (key) {
@@ -204,16 +206,19 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
                     if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
                         if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
-                            if (innerSchema.type === "object" && innerSchema.properties) {
-                                if (typeof value == "object") {
-                                    filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, isNotDeleted, isBanned, innerSchema)
+                            if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
+                                if (innerSchema.type === "object" && innerSchema.properties) {
+                                    if (typeof value == "object") {
+                                        filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
+                                    }
+                                } else {
+                                    filteredRecord[key] = value;
                                 }
-                            } else {
-                                filteredRecord[key] = value;
                             }
                         }
                     }
                 }
+
             })
         }
 
@@ -224,12 +229,25 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
         const {req, res, args, response, userBeforeRequest, inputBeforeRequest} = p;
 
-        const sameUser = (
-            (userBeforeRequest && userBeforeRequest._id && req.wappRequest.user && req.wappRequest.user._id.toString() === userBeforeRequest._id.toString()) ||
-            (!userBeforeRequest && !req.wappRequest.user)
-        )
+        if (
+            (req.user?._id && req.user?._id.toString() === response?._id?.toString()) ||
+            (req.user?._id && req.user?._id.toString() === response?.record?._id?.toString())
+        ) {
+            await wapp.server.session.populateItemMiddleware(req, res);
+        }
 
-        const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args});
+        const sameUser = (
+            (
+                userBeforeRequest &&
+                userBeforeRequest._id &&
+                req.wappRequest.user &&
+                req.wappRequest.user._id.toString() === userBeforeRequest._id.toString() &&
+                req.wappRequest.user[statusManager.statusField] === userBeforeRequest[statusManager.statusField]
+            ) ||
+            (!userBeforeRequest && !req.wappRequest.user)
+        );
+
+        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args});
 
         let filteredResponse;
 
@@ -239,16 +257,16 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 response.toObject() :
                 Object.fromEntries(Object.keys(response).map(function (key) {
                     return [key, (response[key] && response[key].toObject) ? response[key].toObject() : response[key]]
-                }))
+                }));
 
             filteredResponse = {...responseToObject};
 
             const {record} = responseToObject;
 
             if (record){
-                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
+                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
             } else if (responseToObject._id){
-                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
+                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
 
         } else if (response && typeof response == "object" && typeof response.length == "number") {
@@ -256,8 +274,8 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
             filteredResponse = await Promise.all(response.map(async function (post) {
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
-                    const {editorIsAdmin, editorIsAuthorOrAdmin} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args}, post);
-                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, statusManager.isNotDeleted(post), statusManager.isBanned(post))
+                    const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(post), statusManager.isBanned(post))
                 }
                 return post;
             }))
@@ -339,7 +357,6 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 ...rP,
 
                 resolve: async function(p = {}) {
-
                     const {context, args} = p;
 
                     const {req, res} = context;
@@ -347,7 +364,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                     const reqUser = req.wappRequest.user;
                     const input = await getInput({req, res, args});
 
-                    const response = await resolve({...p, input, resolverProperties}) || {}
+                    const response = await resolve({...p, input, resolverProperties, defaultResolver}) || {};
 
                     composeValidationError(p, response);
 
@@ -420,6 +437,7 @@ export default function getResolvers(p = {}) {
                         ...record,
                     });
                     statusManager.setNewStatus(post);
+                    post["_author"+statusManager.statusField] = editor._status;
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -538,7 +556,7 @@ export default function getResolvers(p = {}) {
                 }
 
                 try {
-                    statusManager.setDeletedStatus(post)
+                    statusManager.setDeletedStatus(post);
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -574,7 +592,7 @@ export default function getResolvers(p = {}) {
                 }
 
                 try {
-                    statusManager.setApproveStatus(post)
+                    statusManager.setApproveStatus(post);
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -625,7 +643,7 @@ export default function getResolvers(p = {}) {
                 }
 
                 try {
-                    statusManager.setFeaturedStatus(post)
+                    statusManager.setFeaturedStatus(post);
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -712,7 +730,7 @@ export default function getResolvers(p = {}) {
                 }
 
                 try {
-                    statusManager.setBanStatus(post)
+                    statusManager.setBanStatus(post);
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
@@ -731,11 +749,17 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
-        findMany: {
-            extendResolver: "findMany",
+        findMany: function ({TC}) {
+            return {
+                extendResolver: "findMany",
+                resolve: async function(p) {
+                    const {defaultResolver} = p;
+                    return defaultResolver.resolve(p)
+                }
+            }
         },
         ...(config.resolvers) ? config.resolvers : {}
-    }
+    };
 
     const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, messages});
 

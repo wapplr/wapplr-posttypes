@@ -22,7 +22,7 @@ export default function createStatusManager(p = {}) {
     function recursiveDataTypeValidate(p = {}) {
 
         let {data, required} = p;
-        data = (data && data.toObject) ? data.toObject() : data
+        data = (data && data.toObject) ? data.toObject() : data;
 
         let valid = true;
         Object.keys(required).forEach(function(key) {
@@ -76,6 +76,10 @@ export default function createStatusManager(p = {}) {
             newStatus = dynamicStatus({requiredData});
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -87,6 +91,10 @@ export default function createStatusManager(p = {}) {
             newStatus = dynamicStatus({requiredData});
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -100,6 +108,10 @@ export default function createStatusManager(p = {}) {
         }
 
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -111,6 +123,10 @@ export default function createStatusManager(p = {}) {
             newStatus = statusManager.statuses["deleted"];
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -122,6 +138,10 @@ export default function createStatusManager(p = {}) {
             newStatus = statusManager.statuses["banned"];
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -135,6 +155,10 @@ export default function createStatusManager(p = {}) {
             newStatus = statusManager.statuses["approved"];
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -147,6 +171,10 @@ export default function createStatusManager(p = {}) {
             newStatus = statusManager.statuses["featured"];
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -157,6 +185,10 @@ export default function createStatusManager(p = {}) {
             newStatus = statusManager.statuses["approved"];
         }
         doc[statusField] = newStatus;
+        if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
+            (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
+            doc["_author"+statusField] = newStatus;
+        }
         return newStatus;
     }
 
@@ -321,7 +353,7 @@ export default function createStatusManager(p = {}) {
             ...defaultDescriptor,
             value: getFeaturedStatus
         }
-    })
+    });
 
     return statusManager
 

@@ -26,7 +26,7 @@ export default function getModel(p = {}) {
     const connection = database.connection;
     if (connection.models[modelName]){
         Model = connection.models[modelName];
-        Model = database.addModel({modelName, Model})
+        Model = database.addModel({modelName, Model});
         return Model;
     }
 
@@ -39,6 +39,7 @@ export default function getModel(p = {}) {
         },
         _createdDate: {
             type: mongoose.Schema.Types.Date,
+            index: true,
             wapplr: { readOnly: true }
         },
         _author: {
@@ -49,6 +50,12 @@ export default function getModel(p = {}) {
         [statusManager.statusField]: {
             type: Number,
             default: statusManager.getDefaultStatus(),
+            index: true,
+            wapplr: { readOnly: true }
+        },
+        ["_author"+statusManager.statusField]: {
+            type: Number,
+            index: true,
             wapplr: { readOnly: true }
         },
         ...addSchemaFields
@@ -74,7 +81,7 @@ export default function getModel(p = {}) {
                 if (typeof virtual[key] == "undefined") {
                     virtual[key] = options[key];
                 }
-            })
+            });
             if (!virtual.path) {
                 virtual.path = name;
             }
@@ -87,7 +94,7 @@ export default function getModel(p = {}) {
                 };
             }
         }
-    })
+    });
 
     modelSchema.virtualToGraphQl({
         name: statusManager.statusField+"_isFeatured",
@@ -97,7 +104,7 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
 
     modelSchema.virtualToGraphQl({
         name: statusManager.statusField+"_isApproved",
@@ -107,7 +114,7 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
 
 
     modelSchema.virtualToGraphQl({
@@ -118,7 +125,7 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
 
     modelSchema.virtualToGraphQl({
         name: statusManager.statusField+"_isNotDeleted",
@@ -128,7 +135,7 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
 
     modelSchema.virtualToGraphQl({
         name: statusManager.statusField+"_isBanned",
@@ -138,7 +145,7 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
 
     modelSchema.virtualToGraphQl({
         name: statusManager.statusField+"_isValidated",
@@ -148,12 +155,25 @@ export default function getModel(p = {}) {
         options: {
             instance: "Boolean"
         }
-    })
+    });
+
+    modelSchema.virtualToGraphQl({
+        name: "_author"+statusManager.statusField+"_isNotDeleted",
+        get: function () {
+            return statusManager.isNotDeleted({
+                _id: (this._author?._id) ? this._author?._id : this._author,
+                [statusManager.statusField]: this["_author"+statusManager.statusField]
+            });
+        },
+        options: {
+            instance: "Boolean"
+        }
+    });
 
     modelSchema.add(schemaFields);
 
     if (setSchemaMiddleware){
-        setSchemaMiddleware({schema: modelSchema});
+        setSchemaMiddleware({schema: modelSchema, statusManager});
     }
 
     Model = connection.model(modelName, modelSchema);

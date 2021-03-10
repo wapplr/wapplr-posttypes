@@ -1,16 +1,15 @@
 import wapplrClient from "wapplr";
+import initPostTypes from "./initPostTypes";
 
 export default function createClient(p) {
-    console.log("[wapplr-posttypes] There is not client side module in this package")
-    return p.wapp || wapplrClient({...p});
+    const wapp = p.wapp || wapplrClient({...p});
+    return initPostTypes({wapp, ...p});
 }
 
 export function createMiddleware(p = {}) {
-    // noinspection JSUnusedAssignment,JSUnusedLocalSymbols
-    return function mongoMiddleware(req, res, next) {
-        // eslint-disable-next-line no-unused-vars
-        const wapp = req.wapp || p.wapp || createClient(p);
-        console.log("[wapplr-posttypes] There is not client side module in this package")
+    return function initAuthenticationMiddleware(req, res, next) {
+        const wapp = req.wapp || p.wapp || createClient(p).wapp;
+        initPostTypes({wapp, ...p});
         next();
     }
 }
@@ -25,16 +24,16 @@ const defaultConfig = {
             ROOT: (typeof ROOT !== "undefined") ? ROOT : "/"
         }
     }
-}
+};
 
 export function run(p = defaultConfig) {
 
-    const wapp = createClient(p);
+    const wapp = createClient(p).wapp;
     const globals = wapp.globals;
     const {DEV} = globals;
 
     const app = wapp.client.app;
-    app.use(createMiddleware({wapp, ...p}))
+    app.use(createMiddleware({wapp, ...p}));
     wapp.client.listen();
 
     if (typeof DEV !== "undefined" && DEV && module.hot){
