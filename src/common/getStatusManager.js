@@ -4,6 +4,8 @@ export default function createStatusManager(p = {}) {
 
     const {config = {}} = p;
 
+    const statusField = config.statusField || "_status";
+
     const {
         statuses = {
             featured: 120,
@@ -13,7 +15,7 @@ export default function createStatusManager(p = {}) {
             deleted: 30,
             banned: 20
         },
-        statusField = "_status",
+        authorStatusField = "_author"+statusField,
         requiredDataForStatus = {},
     } = config;
 
@@ -78,7 +80,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -93,7 +95,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -110,7 +112,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -125,7 +127,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -140,7 +142,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -157,7 +159,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -173,7 +175,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -187,7 +189,7 @@ export default function createStatusManager(p = {}) {
         doc[statusField] = newStatus;
         if ((doc._id && doc._author?._id && doc._id.toString() === doc._author._id.toString()) ||
             (doc._id && !doc._author?._id && doc._id.toString() === doc._author.toString())){
-            doc["_author"+statusField] = newStatus;
+            doc[authorStatusField] = newStatus;
         }
         return newStatus;
     }
@@ -264,6 +266,12 @@ export default function createStatusManager(p = {}) {
     function getFeaturedStatus() {
         return statusManager.statuses["featured"];
     }
+    function getBannedStatus() {
+        return  statusManager.statuses["banned"];
+    }
+    function getDeletedStatus() {
+        return  statusManager.statuses["deleted"];
+    }
 
     const statusManager = Object.create(Object.prototype, {
 
@@ -277,6 +285,47 @@ export default function createStatusManager(p = {}) {
             enumerable: false,
             value: statusField
         },
+        authorStatusField: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: authorStatusField
+        },
+        _status_isBanned: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isBanned"
+        },
+        _status_isDeleted: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isDeleted"
+        },
+        _status_isNotDeleted: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isNotDeleted"
+        },
+        _status_isValidated: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isValidated"
+        },
+        _status_isApproved: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isApproved"
+        },
+        _status_isFeatured: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: statusField+"_isFeatured"
+        },
+        _author_status_isNotDeleted: {
+            ...defaultDescriptor,
+            enumerable: false,
+            value: authorStatusField+"_isNotDeleted"
+        },
+
         requiredDataForStatus: {
             ...defaultDescriptor,
             enumerable: false,
@@ -352,6 +401,14 @@ export default function createStatusManager(p = {}) {
         getFeaturedStatus: {
             ...defaultDescriptor,
             value: getFeaturedStatus
+        },
+        getBannedStatus: {
+            ...defaultDescriptor,
+            value: getBannedStatus
+        },
+        getDeletedStatus: {
+            ...defaultDescriptor,
+            value: getDeletedStatus
         }
     });
 

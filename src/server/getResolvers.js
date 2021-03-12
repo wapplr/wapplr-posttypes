@@ -157,7 +157,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
         const editorIsNotDeleted = !!(editor && editor._id && statusManager.isNotDeleted(editor));
         const editorIsValidated = !!(editor && editor._id && statusManager.isValidated(editor));
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
-        const authorIsNotDeleted = !!(author && author._id && statusManager.isNotDeleted({_id: author, [statusManager.statusField]: post["_author"+statusManager.statusField]}));
+        const authorIsNotDeleted = !!(author && author._id && statusManager.isNotDeleted({_id: author, [statusManager.statusField]: post[statusManager.authorStatusField]}));
 
         const filteredRecordResponse = filterInputRecord(record);
         const filteredRecord = filteredRecordResponse.record;
@@ -437,7 +437,7 @@ export default function getResolvers(p = {}) {
                         ...record,
                     });
                     statusManager.setNewStatus(post);
-                    post["_author"+statusManager.statusField] = editor._status;
+                    post[statusManager.authorStatusField] = editor[statusManager.statusField];
                     const savedPost = await post.save();
                     return {
                         record: savedPost,

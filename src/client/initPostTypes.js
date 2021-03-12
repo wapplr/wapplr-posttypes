@@ -106,6 +106,10 @@ function getDefaultPostTypesManager(p = {}) {
         return postTypesManager.addPostType({name, ...rest});
     }
 
+    function defaultFindPostType({name}) {
+        return postTypesManager.postTypes[name];
+    }
+
     const postTypesManager = Object.create(Object.prototype, {
         addPostType: {
             ...defaultDescriptor,
@@ -114,6 +118,10 @@ function getDefaultPostTypesManager(p = {}) {
         getPostType: {
             ...defaultDescriptor,
             value: defaultGetPostType
+        },
+        findPostType: {
+            ...defaultDescriptor,
+            value: defaultFindPostType
         },
         postTypes: {
             ...defaultDescriptor,

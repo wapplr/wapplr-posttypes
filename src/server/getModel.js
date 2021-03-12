@@ -53,7 +53,7 @@ export default function getModel(p = {}) {
             index: true,
             wapplr: { readOnly: true }
         },
-        ["_author"+statusManager.statusField]: {
+        [statusManager.authorStatusField]: {
             type: Number,
             index: true,
             wapplr: { readOnly: true }
@@ -97,7 +97,7 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isFeatured",
+        name: statusManager._status_isFeatured,
         get: function () {
             return statusManager.isFeatured(this);
         },
@@ -107,7 +107,7 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isApproved",
+        name: statusManager._status_isApproved,
         get: function () {
             return statusManager.isApproved(this);
         },
@@ -118,7 +118,7 @@ export default function getModel(p = {}) {
 
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isDeleted",
+        name: statusManager._status_isDeleted,
         get: function () {
             return statusManager.isDeleted(this);
         },
@@ -128,7 +128,7 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isNotDeleted",
+        name: statusManager._status_isNotDeleted,
         get: function () {
             return statusManager.isNotDeleted(this);
         },
@@ -138,7 +138,7 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isBanned",
+        name: statusManager._status_isBanned,
         get: function () {
             return statusManager.isBanned(this);
         },
@@ -148,7 +148,7 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: statusManager.statusField+"_isValidated",
+        name: statusManager._status_isValidated,
         get: function () {
             return statusManager.isValidated(this);
         },
@@ -158,11 +158,11 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.virtualToGraphQl({
-        name: "_author"+statusManager.statusField+"_isNotDeleted",
+        name: statusManager._author_status_isNotDeleted,
         get: function () {
             return statusManager.isNotDeleted({
                 _id: (this._author?._id) ? this._author?._id : this._author,
-                [statusManager.statusField]: this["_author"+statusManager.statusField]
+                [statusManager.statusField]: this[statusManager.authorStatusField]
             });
         },
         options: {
