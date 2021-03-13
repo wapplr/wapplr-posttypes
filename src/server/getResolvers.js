@@ -404,7 +404,9 @@ export default function getResolvers(p = {}) {
 
     const {
         messages = defaultMessages,
-        masterCode = ""
+        beforeCreateResolvers,
+        masterCode = "",
+        ...rest
     } = config;
 
     const resolvers = {
@@ -760,6 +762,10 @@ export default function getResolvers(p = {}) {
         },
         ...(config.resolvers) ? config.resolvers : {}
     };
+
+    if (beforeCreateResolvers){
+        beforeCreateResolvers(resolvers, {...p, config: {...rest, messages, masterCode}});
+    }
 
     const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, messages});
 
