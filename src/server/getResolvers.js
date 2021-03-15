@@ -288,12 +288,15 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
     function composeValidationError(p, response) {
 
-        if (response && response.error && response.error.errors){
+        if (response && response.error){
 
             const error = {
-                name: "ValidationError",
                 message: response.error.message,
-                errors: [
+            };
+
+            if (response.error.errors){
+                error.name = "ValidationError";
+                error.errors = [
                     ...response.error.errors.map(function (error, i) {
 
                         const message = error.message || response.error.message;
@@ -306,15 +309,17 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
                     })
                 ]
-            };
+            }
 
             if (p.projection?.error) {
                 response.error = error;
             } else {
 
+                const message = error.message;
                 delete error.message;
+
                 throw new GraphQLError(
-                    response.error.message,
+                    message,
                     undefined,
                     undefined,
                     undefined,
@@ -364,7 +369,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                     const reqUser = req.wappRequest.user;
                     const input = await getInput({req, res, args});
 
-                    const response = await resolve({...p, input, resolverProperties, defaultResolver}) || {};
+                    const response = await resolve({...p, input, resolverProperties, defaultResolver});
 
                     composeValidationError(p, response);
 
@@ -751,13 +756,11 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
-        findMany: function ({TC}) {
-            return {
-                extendResolver: "findMany",
-                resolve: async function(p) {
-                    const {defaultResolver} = p;
-                    return defaultResolver.resolve(p)
-                }
+        findMany: {
+            extendResolver: "findMany",
+            resolve: async function(p) {
+                const {defaultResolver} = p;
+                return defaultResolver.resolve(p)
             }
         },
         ...(config.resolvers) ? config.resolvers : {}
