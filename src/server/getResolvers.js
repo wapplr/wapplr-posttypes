@@ -472,6 +472,7 @@ export default function getResolvers(p = {}) {
                 const {
                     args,
                     post,
+                    editorIsAuthor,
                     editorIsAuthorOrAdmin,
                     editorIsAdmin,
                     allFieldsAreValid,
@@ -487,7 +488,7 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
-                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || statusManager.isFeatured(post)){
+                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || (statusManager.isFeatured(post) && !editorIsAuthor)){
                     return {
                         error: {message: messages.accessDenied},
                     }
