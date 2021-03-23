@@ -29,6 +29,10 @@ const defaultConfig = {
 
 export async function run(p = defaultConfig) {
 
+    if (p?.config?.globals && !p.config.globals.RUN){
+        p.config.globals.RUN = p.config?.globals.NAME || "wapplr-posttypes"
+    }
+
     const {env} = process;
     env.NODE_ENV = process.env.NODE_ENV;
 
