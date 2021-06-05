@@ -758,10 +758,19 @@ export default function getResolvers(p = {}) {
             },
         },
         findMany: {
-            extendResolver: "findMany",
+            extendResolver: "pagination",
             resolve: async function(p) {
                 const {defaultResolver} = p;
-                return defaultResolver.resolve(p)
+
+                p.args.perPage = (p.input.editorIsAdmin) ? p.args.perPage : 20;
+
+                if (isNaN(Number(p.args.perPage)) ||
+                    (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) < 20) ||
+                    (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) > 100)){
+                    p.args.perPage = 20;
+                }
+
+                return defaultResolver.resolve(p);
             }
         },
         ...(config.resolvers) ? config.resolvers : {}
