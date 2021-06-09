@@ -261,10 +261,19 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
             filteredResponse = {...responseToObject};
 
-            const {record} = responseToObject;
+            const {record, items} = responseToObject;
 
-            if (record){
+            if (record) {
                 filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
+            } else if (items && items.length) {
+                filteredResponse.items = await Promise.all(items.map(async function (post) {
+                    post = (post && post.toObject) ? post.toObject() : post;
+                    if (post && post._id){
+                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                        return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(post), statusManager.isBanned(post))
+                    }
+                    return post;
+                }))
             } else if (responseToObject._id){
                 filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
@@ -757,21 +766,39 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
-        findMany: {
-            extendResolver: "pagination",
-            resolve: async function(p) {
-                const {defaultResolver} = p;
+        findMany: ({TC}) => {
 
-                p.args.perPage = (p.input.editorIsAdmin) ? p.args.perPage : 20;
+            const defaultResolver = TC.getResolver("pagination").addFilterArg({
+                name: "search",
+                type: "String",
+                query: (query, value, resolveParams) => {
+                    resolveParams.args.sort = {
+                        score: { $meta: "textScore" },
+                    };
+                    query.$text = { $search: value };
+                    resolveParams.projection.score = { $meta: "textScore" };
+                },
+            });
 
-                if (isNaN(Number(p.args.perPage)) ||
-                    (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) < 20) ||
-                    (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) > 100)){
-                    p.args.perPage = 20;
+            TC.setResolver("paginationWithSearch", defaultResolver);
+
+            return {
+                extendResolver: "paginationWithSearch",
+                resolve: async function(p) {
+                    const {defaultResolver} = p;
+
+                    p.args.perPage = (p.input.editorIsAdmin) ? p.args.perPage : 20;
+
+                    if (isNaN(Number(p.args.perPage)) ||
+                        (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) < 20) ||
+                        (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) > 100)){
+                        p.args.perPage = 20;
+                    }
+
+                    return defaultResolver.resolve(p);
                 }
-
-                return defaultResolver.resolve(p);
             }
+
         },
         ...(config.resolvers) ? config.resolvers : {}
     };
