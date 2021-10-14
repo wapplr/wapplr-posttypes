@@ -78,13 +78,6 @@ const post = await wapp.server.postTypes.getPostType({
         },
         
         messages: {
-            statusCreated: "created",
-            statusDeleted: "deleted",
-            statusBanned: "banned",
-            statusRequiredData: "required data is not provided",
-            statusApproved: "approved",
-            statusFeatured: "featured",
-
             savePostDefaultFail: "Sorry, there was an issue save the entry, please try again",
             invalidData: "Invalid data",
             missingData: "Missing data",
