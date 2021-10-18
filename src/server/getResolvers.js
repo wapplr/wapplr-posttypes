@@ -276,7 +276,13 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                 }));
                 if (filteredResponse.items?.length){
                     filteredResponse.items = filteredResponse.items.filter((post) => {
-                        return Object.keys(post).filter((key)=>{return !key.startsWith(statusManager.statusField) && key !== "_id"}).length;
+                        return Object.keys(post).filter((key)=>{
+                            return (
+                                !key.startsWith(statusManager.statusField) &&
+                                !key.startsWith(statusManager.authorStatusField) &&
+                                key !== "_id"
+                            )
+                        }).length;
                     })
                 }
             } else if (responseToObject._id){
