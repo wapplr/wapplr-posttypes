@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import wapplrGraphql from "wapplr-graphql";
 import { GraphQLError } from "graphql-compose/lib/graphql";
 
-export function getHelpersForResolvers({wapp, Model, statusManager, messages = defaultMessages}) {
+export function getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, messages = defaultMessages}) {
 
     const jsonSchema = Model.getJsonSchema();
 
@@ -145,13 +145,13 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
         const {req, res, args = {}} = p;
         const reqUser = req.wappRequest.user;
-        const {record} = args;
+        const {record, filter} = args;
 
         const findProps = getFindProps(args);
         const post = inputPost || await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
-        const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : null;
+        const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : filter?._author ? filter._author : null;
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && statusManager.isFeatured(editor));
         const editorIsNotDeleted = !!(editor && editor._id && statusManager.isNotDeleted(editor));
@@ -274,17 +274,6 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                     }
                     return post;
                 }));
-                if (filteredResponse.items?.length){
-                    filteredResponse.items = filteredResponse.items.filter((post) => {
-                        return Object.keys(post).filter((key)=>{
-                            return (
-                                !key.startsWith(statusManager.statusField) &&
-                                !key.startsWith(statusManager.authorStatusField) &&
-                                key !== "_id"
-                            )
-                        }).length;
-                    })
-                }
             } else if (responseToObject._id){
                 filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
@@ -362,7 +351,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
         return function getResolver(TC) {
 
-            const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager}) : {...resolverProperties};
+            const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager, authorStatusManager}) : {...resolverProperties};
 
             const {extendResolver} = rP;
 
@@ -419,7 +408,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
 
 export default function getResolvers(p = {}) {
 
-    const {wapp, Model, statusManager} = p;
+    const {wapp, Model, statusManager, authorStatusManager} = p;
 
     const config = (p.config) ? {...p.config} : {};
 
@@ -777,7 +766,7 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
-        findMany: ({TC}) => {
+        findMany: ({TC, authorStatusManager}) => {
 
             const defaultResolver = TC.getResolver("pagination").addFilterArg({
                 name: "search",
@@ -796,17 +785,69 @@ export default function getResolvers(p = {}) {
             return {
                 extendResolver: "paginationWithSearch",
                 resolve: async function(p) {
-                    const {defaultResolver} = p;
 
-                    p.args.perPage = (p.input.editorIsAdmin) ? p.args.perPage : 20;
+                    const {defaultResolver, args, input} = p;
+                    const {filter = {}} = args;
+                    const {_operators = {}} = filter;
 
-                    if (isNaN(Number(p.args.perPage)) ||
-                        (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) < 20) ||
-                        (!isNaN(Number(p.args.perPage)) && Number(p.args.perPage) > 100)){
-                        p.args.perPage = 20;
+                    const {editorIsAdmin, editorIsAuthor} = input;
+                    args.perPage = (editorIsAdmin) ? args.perPage : 20;
+
+                    if (isNaN(Number(args.perPage)) ||
+                        (!isNaN(Number(args.perPage)) && Number(args.perPage) < 20) ||
+                        (!isNaN(Number(args.perPage)) && Number(args.perPage) > 100)){
+                        args.perPage = 20;
                     }
 
-                    return defaultResolver.resolve(p);
+                    const enabledStatusFilters = (editorIsAuthor) ? [
+                        {gt: statusManager.getMinStatus() - 1},
+                        {gt: statusManager.getDefaultStatus() - 1},
+                        {gt: statusManager.getDeletedStatus() - 1, lt: statusManager.getDefaultStatus()},
+                        {gt: statusManager.getDefaultStatus() - 1, lt: statusManager.getMinStatus()},
+                    ] : [
+                        {gt: statusManager.getMinStatus() - 1}
+                    ];
+
+                    if (!_operators[statusManager.statusField]){
+                        _operators[statusManager.statusField] = enabledStatusFilters[0];
+                    }
+
+                    if (!editorIsAdmin) {
+                        const statusField = _operators[statusManager.statusField];
+                        const foundEnabledStatusFilter = enabledStatusFilters.find((enabledFilter)=>{
+                            return (statusField.gt === enabledFilter.gt && statusField.lt === enabledFilter.lt && Object.keys(enabledFilter).sort().join(",") === Object.keys(statusField).sort().join(","))
+                        });
+                        if (!foundEnabledStatusFilter) {
+                            return {data: null, error: {message: messages.accessDenied}}
+                        }
+                    }
+
+                    if (authorStatusManager){
+
+                        const enabledAuthorStatusFilters = (editorIsAuthor) ? [
+                            {gt: authorStatusManager.getMinStatus() - 1},
+                            {gt: authorStatusManager.getDefaultStatus() - 1}
+                        ] : [
+                            {gt: authorStatusManager.getMinStatus() - 1}
+                        ];
+
+                        if (!_operators[statusManager.authorStatusField]){
+                            _operators[statusManager.authorStatusField] = enabledAuthorStatusFilters[0];
+                        }
+
+                        if (!editorIsAdmin) {
+                            const authorStatusField = _operators[statusManager.authorStatusField];
+                            const foundEnabledAuthorStatusFilter = enabledAuthorStatusFilters.find((enabledFilter) => {
+                                return (authorStatusField.gt === enabledFilter.gt && authorStatusField.lt === enabledFilter.lt && Object.keys(enabledFilter).sort().join(",") === Object.keys(authorStatusField).sort().join(","))
+                            });
+                            if (!foundEnabledAuthorStatusFilter) {
+                                return {data: null, error: {message: messages.accessDenied}}
+                            }
+                        }
+
+                    }
+
+                    return await defaultResolver.resolve(p);
                 }
             }
 
@@ -818,7 +859,7 @@ export default function getResolvers(p = {}) {
         beforeCreateResolvers(resolvers, {...p, config: {...rest, messages, masterCode}});
     }
 
-    const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, messages});
+    const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, messages});
 
     return wapp.server.graphql.addResolversToTC({resolvers: createResolvers(resolvers), TCName: Model.modelName})
 
