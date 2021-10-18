@@ -273,7 +273,12 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
                         return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(post), statusManager.isBanned(post))
                     }
                     return post;
-                }))
+                }));
+                if (filteredResponse.items?.length){
+                    filteredResponse.items = filteredResponse.items.filter((post) => {
+                        return Object.keys(post).filter((key)=>{return !key.startsWith(statusManager.statusField) && key !== "_id"}).length;
+                    })
+                }
             } else if (responseToObject._id){
                 filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
@@ -306,7 +311,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, messages = d
             if (response.error.errors){
                 error.name = "ValidationError";
                 error.errors = [
-                    ...response.error.errors.map(function (error, i) {
+                    ...response.error.errors.map(function (error) {
 
                         const message = error.message || response.error.message;
                         const path = error.path || "";
@@ -468,7 +473,7 @@ export default function getResolvers(p = {}) {
         },
         save: {
             extendResolver: "createOne",
-            args: function (TC, schemaComposer) {
+            args: function (TC) {
                 const defaultResolver = TC.getResolver("createOne");
                 const defaultRecord = defaultResolver.args.record;
                 return {
@@ -552,7 +557,7 @@ export default function getResolvers(p = {}) {
         },
         delete: {
             extendResolver: "updateById",
-            args: function (TC, schemaComposer) {
+            args: function () {
                 return {
                     _id: "MongoID!",
                 }
@@ -588,7 +593,7 @@ export default function getResolvers(p = {}) {
         },
         approve: {
             extendResolver: "updateById",
-            args: function (TC, schemaComposer) {
+            args: function () {
                 return {
                     _id: "MongoID!",
                 }
@@ -624,7 +629,7 @@ export default function getResolvers(p = {}) {
         },
         featured: {
             extendResolver: "updateById",
-            args: function (TC, schemaComposer) {
+            args: function () {
                 return {
                     _id: "MongoID!",
                     masterCode: "String!"
@@ -675,7 +680,7 @@ export default function getResolvers(p = {}) {
         },
         removeFeatured: {
             extendResolver: "updateById",
-            args: function (TC, schemaComposer) {
+            args: function () {
                 return {
                     _id: "MongoID!",
                     masterCode: "String!"
@@ -726,7 +731,7 @@ export default function getResolvers(p = {}) {
         },
         ban: {
             extendResolver: "updateById",
-            args: function (TC, schemaComposer) {
+            args: function () {
                 return {
                     _id: "MongoID!",
                 }
