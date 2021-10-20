@@ -31,15 +31,14 @@ function getDefaultPostTypesManager(p = {}) {
                                     postTypesManager.postTypes[name].unsubscribeUpdateFindById();
                                 }
 
-                                const unsubscribe = wappResponse.store.subscribe(function (state, {type, payload}) {
+                                const unsubscribe = wappResponse.store.subscribe(function ({type, payload}) {
 
                                     if (type === "INS_RES" && payload.name === "responses"){
 
                                         const keys = [name+"New", name+"Save", name+"Delete", name+"Approve", name+"Featured", name+"RemoveFeatured", name+"Ban"];
                                         const response = payload.value;
                                         let foundEnabledKeys = false;
-                                        const stateBeforeUpdate = wappResponse.store.getState();
-                                        const findByIdBeforeUpdate = stateBeforeUpdate.res.responses && stateBeforeUpdate.res.responses[name+"FindById"];
+                                        const findByIdBeforeUpdate =  wappResponse.store.getState("res.responses."+name+"FindById");
 
                                         if (findByIdBeforeUpdate?._id){
 
@@ -56,7 +55,6 @@ function getDefaultPostTypesManager(p = {}) {
                                                                 name: "responses",
                                                                 value: {[name+"FindById"]: response[requestName].record}
                                                             }));
-                                                            wappResponse.state = wappResponse.store.getState();
                                                         }
 
                                                     }
