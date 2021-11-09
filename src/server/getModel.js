@@ -3,7 +3,7 @@ import {defaultDescriptor} from "../common/utils";
 
 export default function getModel(p = {}) {
 
-    const {name = "post", statusManager} = p;
+    const {name = "post", statusManager, authorStatusManager, authorModelName = "User"} = p;
     const capitalzedName = name.slice(0,1).toUpperCase()+name.slice(1);
 
     const config = p.config || {};
@@ -44,16 +44,16 @@ export default function getModel(p = {}) {
         },
         _author: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
+            ref: authorModelName,
             wapplr: { readOnly: true }
         },
-        [statusManager.statusField]: {
+        _status: {
             type: Number,
             default: statusManager.getDefaultStatus(),
             index: true,
             wapplr: { readOnly: true }
         },
-        [statusManager.authorStatusField]: {
+        _author_status: {
             type: Number,
             index: true,
             wapplr: { readOnly: true }
@@ -75,7 +75,7 @@ export default function getModel(p = {}) {
                 virtual.get(get);
             }
             if (set){
-                virtual.get(set);
+                virtual.set(set);
             }
             Object.keys(options).forEach(function (key) {
                 if (typeof virtual[key] == "undefined") {
@@ -160,9 +160,9 @@ export default function getModel(p = {}) {
     modelSchema.virtualToGraphQl({
         name: statusManager._author_status_isNotDeleted,
         get: function () {
-            return statusManager.isNotDeleted({
+            return authorStatusManager.isNotDeleted({
                 _id: (this._author?._id) ? this._author?._id : this._author,
-                [statusManager.statusField]: this[statusManager.authorStatusField]
+                _status: this._author_status
             });
         },
         options: {
@@ -171,6 +171,50 @@ export default function getModel(p = {}) {
     });
 
     modelSchema.add(schemaFields);
+
+    Object.keys(schemaFields).forEach((path)=>{
+        const schemaProps = schemaFields[path];
+        const ref = schemaProps.ref;
+        const array = typeof schemaProps.type === "object" && typeof schemaProps.type.length === "number";
+        const findForValidate = schemaProps.wapplr?.findForValidate || {};
+        if (ref){
+            modelSchema.path(path).validate(async function (value) {
+                if (!value){
+                    return true;
+                }
+                const author = this._author;
+                Model = database.getModel({modelName: ref});
+                if (array){
+                    if (typeof value === "object" && typeof value.length === "number"){
+                        const responses = await Promise.allSettled(value.map(async (item)=>{
+                            if (this._id === value && modelName === ref){
+                                return true;
+                            }
+                            try {
+                                const posts = await Model.find({...findForValidate, _id: item, _author: author});
+                                return !!(posts?.length);
+                            } catch (e) {
+                                throw e;
+                            }
+                        }));
+                        return !!(!responses.find((r)=>!r.value || r.status !== "fulfilled"));
+                    } else {
+                        return false;
+                    }
+                } else {
+                    if (this._id === value && modelName === ref){
+                        return true;
+                    }
+                    try {
+                        const posts = await Model.find({...findForValidate, _id: value, _author: author});
+                        return !!(posts?.length);
+                    } catch (e) {
+                        throw e;
+                    }
+                }
+            }, "Invalid value [{VALUE}]")
+        }
+    });
 
     if (setSchemaMiddleware){
         setSchemaMiddleware({schema: modelSchema, statusManager});

@@ -4,7 +4,8 @@ export default function createStatusManager(p = {}) {
 
     const {config = {}} = p;
 
-    const statusField = config.statusField || "_status";
+    const statusField = "_status";
+    const authorStatusField = "_author" + statusField;
 
     const {
         statuses = {
@@ -15,7 +16,6 @@ export default function createStatusManager(p = {}) {
             deleted: 30,
             banned: 20
         },
-        authorStatusField = "_author"+statusField,
         requiredDataForStatus = {},
     } = config;
 

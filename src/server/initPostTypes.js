@@ -14,8 +14,11 @@ function getDefaultPostTypesManager(p = {}) {
 
         const database = await initDatabase({wapp, name, ...rest});
         const statusManager = rest.statusManager || getStatusManager({wapp, name, ...rest});
-        const Model = getModel({wapp, name, ...rest, statusManager, database});
-        const resolvers = getResolvers({wapp, name, ...rest, Model, statusManager, database});
+        const authorStatusManager = rest.authorStatusManager || statusManager;
+        const Model = getModel({wapp, name, ...rest, statusManager, authorStatusManager, database});
+        const {resolvers, helpersForResolvers} = getResolvers({wapp, name, ...rest, Model, statusManager, authorStatusManager, database});
+
+        const authorModelName = rest.authorModelName || "User";
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {
@@ -27,6 +30,14 @@ function getDefaultPostTypesManager(p = {}) {
                 ...defaultDescriptor,
                 value: statusManager
             },
+            authorStatusManager: {
+                ...defaultDescriptor,
+                value: authorStatusManager
+            },
+            authorModelName: {
+                ...defaultDescriptor,
+                value: authorModelName
+            },
             Model: {
                 ...defaultDescriptor,
                 value: Model
@@ -34,7 +45,11 @@ function getDefaultPostTypesManager(p = {}) {
             resolvers: {
                 ...defaultDescriptor,
                 value: resolvers
-            }
+            },
+            helpersForResolvers: {
+                ...defaultDescriptor,
+                value: helpersForResolvers
+            },
         });
 
         Object.defineProperty(postTypesManager.postTypes, name, {

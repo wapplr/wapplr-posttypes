@@ -9,6 +9,10 @@ export function mergeProperties(dest, src) {
     return dest
 }
 
+export function capitalize(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export const defaultDescriptor = {
     writable: true,
     enumerable: true,

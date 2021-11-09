@@ -1,12 +1,19 @@
-import defaultMessages from "./defaultMessages";
 import mongoose from "mongoose";
 import wapplrGraphql from "wapplr-graphql";
 import { GraphQLError } from "graphql-compose/lib/graphql";
 
-export function getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, messages = defaultMessages}) {
+import {capitalize} from "../common/utils";
+import getConstants from "./getConstants";
+
+export function getHelpersForResolvers(p = {}) {
+
+    const defaultMessages = getConstants(p);
+    const {wapp, Model, statusManager, messages = defaultMessages} = p;
+    const {authorStatusManager = statusManager} = p;
 
     const jsonSchema = Model.getJsonSchema();
 
+    const objectIdPattern = /^[0-9A-Fa-f]{24}$/;
 
     function filterInputRecord(record, parentKey, schema = jsonSchema) {
 
@@ -21,10 +28,19 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
 
                 const innerSchema = schema.properties[key];
                 const value = record[key];
+                const xRef = innerSchema["x-ref"];
                 const readOnly = !!(innerSchema.wapplr && innerSchema.wapplr.readOnly);
                 const disabled = !!(innerSchema.wapplr && innerSchema.wapplr.disabled);
                 const required = !!(innerSchema.wapplr && innerSchema.wapplr.required);
-                const pattern = (innerSchema.wapplr && innerSchema.wapplr.pattern) ? innerSchema.wapplr.pattern : null;
+                const pattern = (innerSchema.wapplr && innerSchema.wapplr.pattern) ?
+                    innerSchema.wapplr.pattern :
+                    (innerSchema.pattern) ?
+                        new RegExp(innerSchema.pattern) :
+                        (innerSchema.items?.pattern) ?
+                            new RegExp(innerSchema.items?.pattern) :
+                            (xRef) ?
+                                objectIdPattern : null;
+
                 const validationMessage = (innerSchema.wapplr && typeof innerSchema.wapplr.validationMessage == "string") ? innerSchema.wapplr.validationMessage : "";
 
                 const nextKey = (parentKey) ? parentKey + "." + key : key;
@@ -51,9 +67,18 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
                             }
                         }
                     } else {
-                        if ((value !== null && value !== undefined && innerSchema.type && typeof value === innerSchema.type)) {
 
-                            if ((pattern && value.toString().match(pattern)) || !pattern) {
+                        const valueType = (value && typeof value === "object" && typeof value.length === "number") ? "array" : typeof value;
+                        if ((value !== null && value !== undefined && innerSchema.type && valueType === innerSchema.type)) {
+
+                            let invalidArrayItems = false;
+                            if (valueType === "array"){
+                                if (pattern && value.filter((item)=>item && item.toString().match(pattern)).length !== value.length){
+                                    invalidArrayItems = true;
+                                }
+                            }
+
+                            if ((valueType !== "array" && pattern && value.toString().match(pattern)) || (valueType !== "array" && !pattern) || (!invalidArrayItems && valueType === "array")) {
                                 filteredRecord[key] = value;
                             } else {
 
@@ -151,13 +176,20 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
         const post = inputPost || await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
+
+        //const editorPostType = (editor && req.session.modelName) ? await wapp.server.postTypes.getPostType({name: req.session.modelName.toLowerCase()}) : null;
+        //const editorStatusManager = editorPostType ? editorPostType.statusManager : authorStatusManager;
+
         const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : filter?._author ? filter._author : null;
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
-        const editorIsAdmin = !!(editor && editor._id && statusManager.isFeatured(editor));
-        const editorIsNotDeleted = !!(editor && editor._id && statusManager.isNotDeleted(editor));
-        const editorIsValidated = !!(editor && editor._id && statusManager.isValidated(editor));
+        const editorIsAdmin = !!(editor && editor._id && editor._status_isFeatured);
+        const editorIsNotDeleted = !!(editor && editor._id && editor._status_isNotDeleted);
+        const editorIsValidated = !!(editor && editor._id && editor._status_isValidated);
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
-        const authorIsNotDeleted = !!(author && author._id && statusManager.isNotDeleted({_id: author, [statusManager.statusField]: post[statusManager.authorStatusField]}));
+        const authorIsNotDeleted = !!(
+            (post && typeof post._author_status_isNotDeleted !== "undefined") ? post._author_status_isNotDeleted :
+                (post && author && authorStatusManager.isNotDeleted({_id: author, _status: post._author_status}))
+        );
 
         const filteredRecordResponse = filterInputRecord(record);
         const filteredRecord = filteredRecordResponse.record;
@@ -193,23 +225,26 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
     }
 
 
-    function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
+    async function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
-            Object.keys(schema.properties).forEach(function (key) {
+            await Promise.all(Object.keys(schema.properties).map(async function (key) {
 
                 const innerSchema = schema.properties[key];
                 const value = record[key];
-                const isPrivateForAdmin = !!(innerSchema.wapplr && innerSchema.wapplr.private === "admin");
-                const isPrivateForAuthor = !!(innerSchema.wapplr && innerSchema.wapplr.private === "author");
+
+                const privateFunctionResponse = innerSchema.wapplr && typeof innerSchema.wapplr.private == "function" ? await innerSchema.wapplr.private({record, key, value}) : null;
+
+                const isPrivateForAdmin = !!((innerSchema.wapplr && innerSchema.wapplr.private === "admin") || (privateFunctionResponse === "admin"));
+                const isPrivateForAuthor = !!((innerSchema.wapplr && innerSchema.wapplr.private === "author") || (privateFunctionResponse === "author"));
 
                 if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
-                    if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
-                        if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
-                            if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match(statusManager.statusField))) {
+                    if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match("_status"))) {
+                        if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match("_status"))) {
+                            if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match("_status"))) {
                                 if (innerSchema.type === "object" && innerSchema.properties) {
                                     if (typeof value == "object") {
-                                        filteredRecord[key] = filterOutputRecord(value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
+                                        filteredRecord[key] = await filterOutputRecord(value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
                                     }
                                 } else {
                                     filteredRecord[key] = value;
@@ -219,7 +254,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
                     }
                 }
 
-            })
+            }))
         }
 
         return (Object.keys(filteredRecord).length || typeof record == "object") ? filteredRecord : null;
@@ -230,8 +265,8 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
         const {req, res, args, response, userBeforeRequest, inputBeforeRequest} = p;
 
         if (
-            (req.user?._id && req.user?._id.toString() === response?._id?.toString()) ||
-            (req.user?._id && req.user?._id.toString() === response?.record?._id?.toString())
+            (req.user?._id && response?._id && req.user._id.toString() === response._id.toString()) ||
+            (req.user?._id && response?.record?._id && req.user._id.toString() === response.record._id.toString())
         ) {
             await wapp.server.session.populateItemMiddleware(req, res);
         }
@@ -242,7 +277,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
                 userBeforeRequest._id &&
                 req.wappRequest.user &&
                 req.wappRequest.user._id.toString() === userBeforeRequest._id.toString() &&
-                req.wappRequest.user[statusManager.statusField] === userBeforeRequest[statusManager.statusField]
+                req.wappRequest.user._status === userBeforeRequest._status
             ) ||
             (!userBeforeRequest && !req.wappRequest.user)
         );
@@ -261,21 +296,30 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
 
             filteredResponse = {...responseToObject};
 
-            const {record, items} = responseToObject;
+            const {record, items, records} = responseToObject;
 
             if (record) {
-                filteredResponse.record = filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
+                filteredResponse.record = await filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
             } else if (items && items.length) {
                 filteredResponse.items = await Promise.all(items.map(async function (post) {
                     post = (post && post.toObject) ? post.toObject() : post;
                     if (post && post._id){
                         const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
-                        return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(post), statusManager.isBanned(post))
+                        return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
+                    }
+                    return post;
+                }));
+            } else if (records && records.length) {
+                filteredResponse.records = await Promise.all(records.map(async function (post) {
+                    post = (post && post.toObject) ? post.toObject() : post;
+                    if (post && post._id){
+                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                        return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                     }
                     return post;
                 }));
             } else if (responseToObject._id){
-                filteredResponse = filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
+                filteredResponse = await filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
 
         } else if (response && typeof response == "object" && typeof response.length == "number") {
@@ -284,7 +328,7 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
                     const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
-                    return filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(post), statusManager.isBanned(post))
+                    return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                 }
                 return post;
             }))
@@ -408,13 +452,19 @@ export function getHelpersForResolvers({wapp, Model, statusManager, authorStatus
 
 export default function getResolvers(p = {}) {
 
-    const {wapp, Model, statusManager, authorStatusManager} = p;
+    const {wapp, Model, statusManager, authorModelName = "User", name = "post", database} = p;
+    const authorStatusManager = p.authorStatusManager || statusManager;
+
+    const n = name;
+    const N = capitalize(n);
 
     const config = (p.config) ? {...p.config} : {};
 
     if (!wapp.server.graphql){
         wapplrGraphql(p)
     }
+
+    const defaultMessages = getConstants(p);
 
     const {
         messages = defaultMessages,
@@ -423,12 +473,14 @@ export default function getResolvers(p = {}) {
         ...rest
     } = config;
 
+    const AuthorModel = database.getModel({modelName: authorModelName});
+
     const resolvers = {
         new: {
             extendResolver: "createOne",
             resolve: async function ({input}){
-                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, allFieldsAreValid, mergedErrorFields} = input;
-                const {record} = args;
+                const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, allFieldsAreValid, mergedErrorFields, editorIsAdmin} = input;
+                const {record, _author} = args;
 
                 if (!editorIsValidated){
                     return {
@@ -445,22 +497,24 @@ export default function getResolvers(p = {}) {
                     }
                 }
 
+                const author = (editorIsAdmin && _author) ? await AuthorModel.findById(_author) : editor;
+
                 try {
                     const post = new Model({
                         _id: mongoose.Types.ObjectId(),
                         _createdDate: new Date(),
-                        _author: editor._id,
+                        _author: (author && author._id) ? author._id : editor._id,
                         ...record,
                     });
                     statusManager.setNewStatus(post);
-                    post[statusManager.authorStatusField] = editor[statusManager.statusField];
+                    post._author_status = (author && author._id) ? author._status : editor._status;
                     const savedPost = await post.save();
                     return {
                         record: savedPost,
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     }
                 }
 
@@ -493,11 +547,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || (statusManager.isFeatured(post) && !editorIsAuthor)){
+                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && post._status_isBanned) || (post._status_isFeatured && !editorIsAuthor)){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -506,7 +560,7 @@ export default function getResolvers(p = {}) {
                 if (!allFieldsAreValid || !allRequiredFieldsAreProvided){
                     return {
                         error: {
-                            message: (allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
+                            message: (!allRequiredFieldsAreProvided) ? messages.missingData : messages.invalidData,
                             errors: mergedErrorFields
                         },
                     }
@@ -516,7 +570,7 @@ export default function getResolvers(p = {}) {
 
                     function recursiveApply(post, record) {
                         Object.keys(record).forEach(function (key) {
-                            if (record[key] && typeof record[key] == "object") {
+                            if (record[key] && typeof record[key] == "object" && typeof record[key].length !== "number") {
                                 if (!post[key]) {
                                     post[key] = {};
                                 }
@@ -530,11 +584,11 @@ export default function getResolvers(p = {}) {
 
                     recursiveApply(post, record);
 
-                    if (editorIsAdmin && statusManager.isBanned(post)){
+                    if (editorIsAdmin && post._status_isBanned){
                         statusManager.setRestoreStatusByAdmin(post);
-                    } else if (editorIsAuthorOrAdmin && statusManager.isDeleted(post)){
+                    } else if (editorIsAuthorOrAdmin && post._status_isDeleted){
                         statusManager.setRestoreStatusByAuthor(post);
-                    } else if (!statusManager.isFeatured(post)){
+                    } else if (!post._status_isFeatured){
                         statusManager.setNewStatus(post);
                     }
 
@@ -545,7 +599,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     }
                 }
             },
@@ -562,11 +616,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && statusManager.isBanned(post)) || statusManager.isFeatured(post)){
+                if (!editorIsAuthorOrAdmin || (!editorIsAdmin && post._status_isBanned) || post._status_isFeatured){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -580,7 +634,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     }
                 }
 
@@ -598,11 +652,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAdmin || statusManager.isFeatured(post)){
+                if (!editorIsAdmin || post._status_isFeatured){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -616,7 +670,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     }
                 }
 
@@ -649,11 +703,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAdmin || !statusManager.isApproved(post) || masterCode !== inputMasterCode){
+                if (!editorIsAdmin || !post._status_isApproved || masterCode !== inputMasterCode){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -667,7 +721,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     };
                 }
 
@@ -700,11 +754,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAdmin || !statusManager.isFeatured(post) || masterCode !== inputMasterCode){
+                if (!editorIsAdmin || !post._status_isFeatured || masterCode !== inputMasterCode){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -718,7 +772,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     };
                 }
 
@@ -736,11 +790,11 @@ export default function getResolvers(p = {}) {
 
                 if (!post){
                     return {
-                        error: {message: messages.postNotFound},
+                        error: {message: messages[n+"NotFound"]},
                     }
                 }
 
-                if (!editorIsAdmin || statusManager.isFeatured(post)){
+                if (!editorIsAdmin || post._status_isFeatured){
                     return {
                         error: {message: messages.accessDenied},
                     }
@@ -754,7 +808,7 @@ export default function getResolvers(p = {}) {
                     }
                 } catch (e){
                     return {
-                        error: {message: e.message || messages.savePostDefaultFail},
+                        error: {message: e.message || messages["save"+N+"DefaultFail"]},
                     }
                 }
             },
@@ -808,12 +862,12 @@ export default function getResolvers(p = {}) {
                         {gt: statusManager.getMinStatus() - 1}
                     ];
 
-                    if (!_operators[statusManager.statusField]){
-                        _operators[statusManager.statusField] = enabledStatusFilters[0];
+                    if (!_operators._status && !editorIsAdmin){
+                        _operators._status = enabledStatusFilters[0];
                     }
 
                     if (!editorIsAdmin) {
-                        const statusField = _operators[statusManager.statusField];
+                        const statusField = _operators._status;
                         const foundEnabledStatusFilter = enabledStatusFilters.find((enabledFilter)=>{
                             return (statusField.gt === enabledFilter.gt && statusField.lt === enabledFilter.lt && Object.keys(enabledFilter).sort().join(",") === Object.keys(statusField).sort().join(","))
                         });
@@ -831,12 +885,12 @@ export default function getResolvers(p = {}) {
                             {gt: authorStatusManager.getMinStatus() - 1}
                         ];
 
-                        if (!_operators[statusManager.authorStatusField]){
-                            _operators[statusManager.authorStatusField] = enabledAuthorStatusFilters[0];
+                        if (!_operators._author_status && !editorIsAdmin){
+                            _operators._author_status = enabledAuthorStatusFilters[0];
                         }
 
                         if (!editorIsAdmin) {
-                            const authorStatusField = _operators[statusManager.authorStatusField];
+                            const authorStatusField = _operators._author_status;
                             const foundEnabledAuthorStatusFilter = enabledAuthorStatusFilters.find((enabledFilter) => {
                                 return (authorStatusField.gt === enabledFilter.gt && authorStatusField.lt === enabledFilter.lt && Object.keys(enabledFilter).sort().join(",") === Object.keys(authorStatusField).sort().join(","))
                             });
@@ -855,12 +909,14 @@ export default function getResolvers(p = {}) {
         ...(config.resolvers) ? config.resolvers : {}
     };
 
+    const helpersForResolvers = getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, authorModelName, messages});
+
     if (beforeCreateResolvers){
-        beforeCreateResolvers(resolvers, {...p, config: {...rest, messages, masterCode}});
+        beforeCreateResolvers(resolvers, {...p, helpersForResolvers, config: {...rest, messages, masterCode}});
     }
 
-    const {createResolvers} = getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, messages});
+    const {createResolvers} = helpersForResolvers;
 
-    return wapp.server.graphql.addResolversToTC({resolvers: createResolvers(resolvers), TCName: Model.modelName})
+    return {resolvers: wapp.server.graphql.addResolversToTC({resolvers: createResolvers(resolvers), TCName: Model.modelName}), helpersForResolvers}
 
 }
