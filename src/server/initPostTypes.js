@@ -3,6 +3,7 @@ import initDatabase from "./initDatabase";
 import getModel from "./getModel";
 import getResolvers from "./getResolvers";
 import getStatusManager from "../common/getStatusManager";
+import getConstants from "./getConstants";
 
 function getDefaultPostTypesManager(p = {}) {
 
@@ -19,6 +20,9 @@ function getDefaultPostTypesManager(p = {}) {
         const {resolvers, helpersForResolvers} = getResolvers({wapp, name, ...rest, Model, statusManager, authorStatusManager, database});
 
         const authorModelName = rest.authorModelName || "User";
+        const defaultConstants = getConstants(p);
+        const messages = rest.messages || defaultConstants.messages;
+        const labels = rest.labels || defaultConstants.labels;
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {
@@ -50,6 +54,13 @@ function getDefaultPostTypesManager(p = {}) {
                 ...defaultDescriptor,
                 value: helpersForResolvers
             },
+            constants: {
+                ...defaultDescriptor,
+                value: {
+                    messages,
+                    labels
+                }
+            }
         });
 
         Object.defineProperty(postTypesManager.postTypes, name, {

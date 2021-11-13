@@ -7,8 +7,8 @@ import getConstants from "./getConstants";
 
 export function getHelpersForResolvers(p = {}) {
 
-    const defaultMessages = getConstants(p);
-    const {wapp, Model, statusManager, messages = defaultMessages} = p;
+    const defaultConstants = getConstants(p);
+    const {wapp, Model, statusManager, messages = defaultConstants.messages} = p;
     const {authorStatusManager = statusManager} = p;
 
     const jsonSchema = Model.getJsonSchema();
@@ -464,10 +464,10 @@ export default function getResolvers(p = {}) {
         wapplrGraphql(p)
     }
 
-    const defaultMessages = getConstants(p);
+    const defaultConstants = getConstants(p);
 
     const {
-        messages = defaultMessages,
+        messages = defaultConstants.messages,
         beforeCreateResolvers,
         masterCode = "",
         ...rest
@@ -521,9 +521,9 @@ export default function getResolvers(p = {}) {
             },
         },
         save: {
-            extendResolver: "createOne",
+            extendResolver: "updateById",
             args: function (TC) {
-                const defaultResolver = TC.getResolver("createOne");
+                const defaultResolver = TC.getResolver("updateById");
                 const defaultRecord = defaultResolver.args.record;
                 return {
                     _id: "MongoID!",
