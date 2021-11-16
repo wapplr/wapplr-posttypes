@@ -5,7 +5,8 @@ import getConstants from "./getConstants";
 export default function getModel(p = {}) {
 
     const defaultConstants = getConstants(p);
-    const {name = "post", statusManager, authorStatusManager, authorModelName = "User", labels = defaultConstants.labels} = p;
+    const {name = "post", statusManager, authorModelName = "User", labels = defaultConstants.labels} = p;
+    const {authorStatusManager = statusManager} = p;
 
     const n = name;
     const ns = n+"s";

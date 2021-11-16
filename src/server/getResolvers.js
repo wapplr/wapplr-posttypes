@@ -176,10 +176,6 @@ export function getHelpersForResolvers(p = {}) {
         const post = inputPost || await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
-
-        //const editorPostType = (editor && req.session.modelName) ? await wapp.server.postTypes.getPostType({name: req.session.modelName.toLowerCase()}) : null;
-        //const editorStatusManager = editorPostType ? editorPostType.statusManager : authorStatusManager;
-
         const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : filter?._author ? filter._author : null;
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && editor._status_isFeatured);
