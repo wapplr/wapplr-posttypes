@@ -393,9 +393,9 @@ export function getHelpersForResolvers(p = {}) {
             return null;
         }
 
-        return function getResolver(TC) {
+        return function getResolver(TC, schemaComposer) {
 
-            const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager, authorStatusManager}) : {...resolverProperties};
+            const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager, authorStatusManager, schemaComposer}) : {...resolverProperties};
 
             const {extendResolver} = rP;
 
@@ -470,6 +470,10 @@ export default function getResolvers(p = {}) {
         messages = defaultConstants.messages,
         beforeCreateResolvers,
         masterCode = "",
+        perPage = {
+            limit: 100,
+            default: 20
+        },
         ...rest
     } = config;
 
@@ -820,24 +824,44 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
-        findMany: ({TC, authorStatusManager}) => {
+        findMany: ({TC, authorStatusManager, schemaComposer}) => {
 
             const defaultResolver = TC.getResolver("pagination").addFilterArg({
                 name: "search",
                 type: "String",
                 query: (query, value, resolveParams) => {
-                    resolveParams.args.sort = {
-                        score: { $meta: "textScore" },
-                    };
+                    if (!resolveParams.args.sort) {
+                        resolveParams.args.sort = {
+                            score: {$meta: "textScore"},
+                        };
+                    }
                     query.$text = { $search: value };
                     resolveParams.projection.score = { $meta: "textScore" };
                 },
             });
 
+            try {
+                const PaginationInfoOT = schemaComposer.getOTC("PaginationInfo");
+                PaginationInfoOT.addFields({
+                    sort: {
+                        type: "String"
+                    }
+                })
+            } catch (e){}
+
             TC.setResolver("paginationWithSearch", defaultResolver);
 
             return {
                 extendResolver: "paginationWithSearch",
+                wapplr: {
+                    perPage: {
+                        wapplr: {
+                            listData: {
+                                perPage
+                            }
+                        }
+                    },
+                },
                 resolve: async function(p) {
 
                     const {defaultResolver, args, input} = p;
@@ -845,12 +869,9 @@ export default function getResolvers(p = {}) {
                     const {_operators = {}} = filter;
 
                     const {editorIsAdmin, editorIsAuthor} = input;
-                    args.perPage = (editorIsAdmin) ? args.perPage : 20;
 
-                    if (isNaN(Number(args.perPage)) ||
-                        (!isNaN(Number(args.perPage)) && Number(args.perPage) < 20) ||
-                        (!isNaN(Number(args.perPage)) && Number(args.perPage) > 100)){
-                        args.perPage = 20;
+                    if (!args.perPage || args.perPage < 1 || args.perPage > perPage.limit){
+                        args.perPage = perPage.default;
                     }
 
                     const enabledStatusFilters = (editorIsAuthor) ? [
@@ -901,7 +922,11 @@ export default function getResolvers(p = {}) {
 
                     }
 
-                    return await defaultResolver.resolve(p);
+                    const r = await defaultResolver.resolve(p);
+                    if (r.pageInfo){
+                        r.pageInfo.sort = (typeof args.sort === "object" && Object.keys(args.sort) && input.req.body.variables?.sort) || null
+                    }
+                    return r;
                 }
             }
 

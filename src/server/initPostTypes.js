@@ -24,6 +24,13 @@ function getDefaultPostTypesManager(p = {}) {
         const messages = rest.messages || defaultConstants.messages;
         const labels = rest.labels || defaultConstants.labels;
 
+        const {
+            perPage = {
+                limit: 100,
+                default: 20
+            },
+        } = rest;
+
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {
                 ...defaultDescriptor,
@@ -60,7 +67,11 @@ function getDefaultPostTypesManager(p = {}) {
                     messages,
                     labels
                 }
-            }
+            },
+            perPage: {
+                ...defaultDescriptor,
+                value: perPage
+            },
         });
 
         Object.defineProperty(postTypesManager.postTypes, name, {

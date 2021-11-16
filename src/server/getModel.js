@@ -1,14 +1,19 @@
 import mongoose from "mongoose";
-import {defaultDescriptor} from "../common/utils";
+import {capitalize, defaultDescriptor} from "../common/utils";
+import getConstants from "./getConstants";
 
 export default function getModel(p = {}) {
 
-    const {name = "post", statusManager, authorStatusManager, authorModelName = "User"} = p;
-    const capitalzedName = name.slice(0,1).toUpperCase()+name.slice(1);
+    const defaultConstants = getConstants(p);
+    const {name = "post", statusManager, authorStatusManager, authorModelName = "User", labels = defaultConstants.labels} = p;
+
+    const n = name;
+    const ns = n+"s";
+    const N = capitalize(n);
 
     const config = p.config || {};
 
-    const modelName = config.modelName || capitalzedName;
+    const modelName = config.modelName || N;
     const addSchemaFields = config.schemaFields || {};
     const setSchemaMiddleware = config.setSchemaMiddleware;
 
@@ -35,12 +40,30 @@ export default function getModel(p = {}) {
     const schemaFields = {
         _id: {
             type: mongoose.Schema.Types.ObjectId,
-            wapplr: { readOnly: true, formData: { hidden: true } }
+            wapplr: {
+                readOnly: true,
+                formData: { hidden: true },
+                listData: {
+                    sort: {
+                        disabled: true,
+                    }
+                }
+            }
         },
         _createdDate: {
             type: mongoose.Schema.Types.Date,
             index: true,
-            wapplr: { readOnly: true }
+            wapplr: {
+                readOnly: true,
+                listData: {
+                    sort: {
+                        ascLabel: labels[ns+"Sort_CREATEDDATE_ASC"],
+                        descLabel: labels[ns+"Sort_CREATEDDATE_DESC"],
+                        default: "DESC",
+                        order: 0
+                    }
+                }
+            }
         },
         _author: {
             type: mongoose.Schema.Types.ObjectId,
@@ -51,12 +74,26 @@ export default function getModel(p = {}) {
             type: Number,
             default: statusManager.getDefaultStatus(),
             index: true,
-            wapplr: { readOnly: true }
+            wapplr: {
+                readOnly: true,
+                listData: {
+                    sort: {
+                        disabled: true,
+                    }
+                }
+            }
         },
         _author_status: {
             type: Number,
             index: true,
-            wapplr: { readOnly: true }
+            wapplr: {
+                readOnly: true,
+                listData: {
+                    sort: {
+                        disabled: true,
+                    }
+                }
+            }
         },
         ...addSchemaFields
     };

@@ -4,6 +4,7 @@ export default function getConstants(p = {}) {
 
     const {name = "post"} = p;
     const n = name;
+    const ns = n+"s";
     const N = capitalize(n);
 
     const messages = {
@@ -15,6 +16,11 @@ export default function getConstants(p = {}) {
         accessDenied: "You do not have permission to perform that operation"
     };
 
-    return {messages}
+    const labels = {
+        [ns+"Sort_CREATEDDATE_ASC"]: "Oldest to the top",
+        [ns+"Sort_CREATEDDATE_DESC"]: "Latest to the top",
+    };
+
+    return {messages, labels}
 
 }
