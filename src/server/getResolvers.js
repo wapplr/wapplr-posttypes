@@ -448,8 +448,7 @@ export function getHelpersForResolvers(p = {}) {
 
 export default function getResolvers(p = {}) {
 
-    const {wapp, Model, statusManager, authorModelName = "User", name = "post", database} = p;
-    const authorStatusManager = p.authorStatusManager || statusManager;
+    const {wapp, name = "post"} = p;
 
     const n = name;
     const N = capitalize(n);
@@ -463,6 +462,10 @@ export default function getResolvers(p = {}) {
     const defaultConstants = getConstants(p);
 
     const {
+        Model,
+        statusManager,
+        database,
+        authorModelName = "User",
         messages = defaultConstants.messages,
         beforeCreateResolvers,
         masterCode = "",
@@ -472,6 +475,8 @@ export default function getResolvers(p = {}) {
         },
         ...rest
     } = config;
+
+    const authorStatusManager = config.authorStatusManager || statusManager;
 
     const AuthorModel = database.getModel({modelName: authorModelName});
 
@@ -930,10 +935,24 @@ export default function getResolvers(p = {}) {
         ...(config.resolvers) ? config.resolvers : {}
     };
 
-    const helpersForResolvers = getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, authorModelName, messages});
+    const helpersForResolvers = getHelpersForResolvers({wapp, Model, statusManager, authorStatusManager, messages});
 
     if (beforeCreateResolvers){
-        beforeCreateResolvers(resolvers, {...p, helpersForResolvers, config: {...rest, messages, masterCode}});
+        beforeCreateResolvers(resolvers, {
+            ...p,
+            name,
+            helpersForResolvers,
+            config: {
+                ...rest,
+                Model,
+                statusManager,
+                authorModelName,
+                database,
+                messages,
+                beforeCreateResolvers,
+                masterCode,
+                perPage
+            }});
     }
 
     const {createResolvers} = helpersForResolvers;

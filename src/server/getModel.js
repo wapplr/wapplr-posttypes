@@ -4,21 +4,25 @@ import getConstants from "./getConstants";
 
 export default function getModel(p = {}) {
 
-    const defaultConstants = getConstants(p);
-    const {name = "post", statusManager, authorModelName = "User", labels = defaultConstants.labels} = p;
-    const {authorStatusManager = statusManager} = p;
+    const {name = "post", config = {}} = p;
 
     const n = name;
     const ns = n+"s";
     const N = capitalize(n);
 
-    const config = p.config || {};
+    const defaultConstants = getConstants(p);
+    const {
+        statusManager,
+        authorModelName = "User",
+        labels = defaultConstants.labels,
+        modelName = N,
+        setSchemaMiddleware,
+        database,
+    } = config;
 
-    const modelName = config.modelName || N;
-    const addSchemaFields = config.schemaFields || {};
-    const setSchemaMiddleware = config.setSchemaMiddleware;
+    const addSchemaFields = config.schemaFields;
 
-    const database = p.database;
+    const {authorStatusManager = statusManager} = config;
 
     let Model = config.Model || database.getModel({modelName});
 
@@ -220,6 +224,11 @@ export default function getModel(p = {}) {
                 if (!value){
                     return true;
                 }
+                const isModified = this.isModified(path);
+                if (!isModified){
+                    return true;
+                }
+
                 const author = this._author;
                 Model = database.getModel({modelName: ref});
                 if (array){

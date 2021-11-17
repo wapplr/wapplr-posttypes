@@ -11,25 +11,28 @@ function getDefaultPostTypesManager(p = {}) {
 
     async function defaultAddPostType(p = {}) {
 
-        const {name = "post", ...rest} = p;
+        const {name = "post", config = {}} = p;
 
-        const database = await initDatabase({wapp, name, ...rest});
-        const statusManager = rest.statusManager || getStatusManager({wapp, name, ...rest});
-        const authorStatusManager = rest.authorStatusManager || statusManager;
-        const Model = getModel({wapp, name, ...rest, statusManager, authorStatusManager, database});
-        const {resolvers, helpersForResolvers} = getResolvers({wapp, name, ...rest, Model, statusManager, authorStatusManager, database});
-
-        const authorModelName = rest.authorModelName || "User";
         const defaultConstants = getConstants(p);
-        const messages = rest.messages || defaultConstants.messages;
-        const labels = rest.labels || defaultConstants.labels;
 
         const {
+            authorModelName =  "User",
+            messages = defaultConstants.messages,
+            labels = defaultConstants.labels,
             perPage = {
                 limit: 100,
                 default: 20
             },
-        } = rest;
+        } = config;
+
+        const statusManager = config.statusManager || getStatusManager({config});
+        const authorStatusManager = config.authorStatusManager || statusManager;
+        const database = await initDatabase({wapp, name, config});
+
+        const configWithDefaults = {...config, authorModelName, messages, labels, perPage, statusManager, authorStatusManager, database};
+
+        const Model = getModel({wapp, name, config: configWithDefaults});
+        const {resolvers, helpersForResolvers} = getResolvers({wapp, name, config: {...configWithDefaults, Model}});
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {
