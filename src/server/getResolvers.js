@@ -233,6 +233,7 @@ export function getHelpersForResolvers(p = {}) {
 
                 const isPrivateForAdmin = !!((innerSchema.wapplr && innerSchema.wapplr.private === "admin") || (privateFunctionResponse === "admin"));
                 const isPrivateForAuthor = !!((innerSchema.wapplr && innerSchema.wapplr.private === "author") || (privateFunctionResponse === "author"));
+                const finalDataFilter = innerSchema.wapplr?.finalDataFilter;
 
                 if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
                     if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match("_status"))) {
@@ -243,7 +244,19 @@ export function getHelpersForResolvers(p = {}) {
                                         filteredRecord[key] = await filterOutputRecord(value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
                                     }
                                 } else {
-                                    filteredRecord[key] = value;
+                                    filteredRecord[key] =
+                                        (finalDataFilter) ?
+                                            finalDataFilter({
+                                                value,
+                                                record,
+                                                isAdmin,
+                                                isAuthorOrAdmin,
+                                                authorIsNotDeleted,
+                                                isNotDeleted,
+                                                isBanned,
+                                                schema
+                                            })
+                                            : value;
                                 }
                             }
                         }

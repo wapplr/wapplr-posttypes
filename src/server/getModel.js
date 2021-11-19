@@ -18,6 +18,7 @@ export default function getModel(p = {}) {
         modelName = N,
         setSchemaMiddleware,
         database,
+        beforeCreateSchema
     } = config;
 
     const addSchemaFields = config.schemaFields;
@@ -66,6 +67,9 @@ export default function getModel(p = {}) {
                         descLabel: labels[ns+"Sort_CREATEDDATE_DESC"],
                         default: "DESC",
                         order: 0
+                    },
+                    list: {
+                        show: "header"
                     }
                 }
             }
@@ -73,7 +77,14 @@ export default function getModel(p = {}) {
         _author: {
             type: mongoose.Schema.Types.ObjectId,
             ref: authorModelName,
-            wapplr: { readOnly: true }
+            wapplr: {
+                readOnly: true,
+                listData: {
+                    list: {
+                        show: "header"
+                    }
+                }
+            }
         },
         _status: {
             type: Number,
@@ -84,6 +95,10 @@ export default function getModel(p = {}) {
                 listData: {
                     sort: {
                         disabled: true,
+                    },
+                    list: {
+                        show: "header",
+                        role: "isAuthorOrAdmin"
                     }
                 }
             }
@@ -102,6 +117,10 @@ export default function getModel(p = {}) {
         },
         ...addSchemaFields
     };
+
+    if (beforeCreateSchema){
+        beforeCreateSchema({schemaFields})
+    }
 
     const modelSchema = new Schema(schemaFields, {
         toObject: { virtuals: true },
@@ -130,11 +149,11 @@ export default function getModel(p = {}) {
             if (!virtual.instance) {
                 virtual.instance = "String";
             }
+
             if (!virtual.wapplr) {
-                virtual.wapplr = {
-                    readOnly: true
-                };
+                virtual.wapplr = {};
             }
+            virtual.wapplr.readOnly = true;
         }
     });
 
