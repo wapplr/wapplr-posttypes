@@ -19,6 +19,8 @@ export default function getConstants(p = {}) {
     const labels = {
         [ns+"Sort_CREATEDDATE_ASC"]: "Oldest to the top",
         [ns+"Sort_CREATEDDATE_DESC"]: "Latest to the top",
+        [n+"StatusLabel"]: "Status",
+        [n+"CreatedDateLabel"]: "Created date",
     };
 
     return {messages, labels}

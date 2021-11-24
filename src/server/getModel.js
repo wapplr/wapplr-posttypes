@@ -69,7 +69,14 @@ export default function getModel(p = {}) {
                         order: 0
                     },
                     list: {
-                        show: "header"
+                        show: false
+                    },
+                    table: {
+                        componentName: "Date",
+                        role: "isAuthorOrAdmin",
+                        label: labels[n+"CreatedDateLabel"],
+                        icon: "date",
+                        order: 99,
                     }
                 }
             }
@@ -97,8 +104,14 @@ export default function getModel(p = {}) {
                         disabled: true,
                     },
                     list: {
-                        show: "header",
-                        role: "isAuthorOrAdmin"
+                        show: false,
+                    },
+                    table: {
+                        componentName: "Status",
+                        role: "isAuthorOrAdmin",
+                        label: labels[n+"StatusLabel"],
+                        icon: "status",
+                        order: 100,
                     }
                 }
             }

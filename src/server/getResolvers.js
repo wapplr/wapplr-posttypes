@@ -125,7 +125,7 @@ export function getHelpersForResolvers(p = {}) {
     }
 
     async function getPost(p) {
-        if (p){
+        if (p && Object.keys(p).length){
             const post = await Model.findOne({...p});
             if (post && post._id){
                 return post;
@@ -135,22 +135,23 @@ export function getHelpersForResolvers(p = {}) {
     }
 
     function getFindProps(args = {}) {
-        const {_id, email} = args;
-        let findProps;
 
-        if (_id){
-            if (!findProps){
-                findProps = {}
-            }
-            findProps._id = _id;
-        } else if (email){
-            if (!findProps){
-                findProps = {}
-            }
-            findProps.email = email;
+        const findProps = {};
+
+        function rec (args, jsonSchema, findProps, prevKey = "") {
+            Object.keys(args).forEach((key) => {
+                if ((key === "_id" && !prevKey) || (jsonSchema.properties && jsonSchema.properties[key]?.wapplr?.unique)) {
+                    findProps[key] = args[key];
+                } else if (args[key] && typeof args[key] === "object" && jsonSchema.properties && jsonSchema.properties[key]?.properties){
+                    findProps[key] = {};
+                    rec(args[key], jsonSchema.properties[key], findProps[key], key);
+                }
+            });
         }
 
-        return findProps;
+        rec(args, jsonSchema, findProps);
+
+        return Object.keys(findProps).length ? findProps : null;
     }
 
     function getFilteredArgs(args = {}, filteredRecord) {
