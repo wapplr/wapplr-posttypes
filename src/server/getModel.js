@@ -135,9 +135,35 @@ export default function getModel(p = {}) {
         beforeCreateSchema({schemaFields})
     }
 
+    function rec(schemaFields) {
+        Object.keys(schemaFields).forEach((key)=>{
+            const field = schemaFields[key];
+
+            if (!field.type && Object.keys(field).length && key !== "wapplr"){
+                rec(field);
+            } else {
+                ["default", "required", "unique", "ref"].forEach((saveKey)=> {
+                    if (typeof field[saveKey] === "undefined" && field.wapplr && typeof field.wapplr[saveKey] !== "undefined"){
+                        field[saveKey] = field.wapplr[saveKey];
+                    }
+                    if (typeof field[saveKey] !== "undefined" && field.wapplr && typeof field.wapplr[saveKey] == "undefined"){
+                        field.wapplr[saveKey] = field[saveKey];
+                        if (saveKey === "required"){
+                            field.wapplr[saveKey] = !!(field[saveKey]);
+                        }
+                    }
+                })
+            }
+
+        });
+    }
+
+    rec(schemaFields);
+
     const modelSchema = new Schema(schemaFields, {
         toObject: { virtuals: true },
-        toJSON: { virtuals: true }
+        toJSON: { virtuals: true },
+        id: false
     });
 
     Object.defineProperty(modelSchema, "virtualToGraphQl", {
@@ -248,7 +274,7 @@ export default function getModel(p = {}) {
 
     Object.keys(schemaFields).forEach((path)=>{
         const schemaProps = schemaFields[path];
-        const ref = schemaProps.ref;
+        const ref = schemaProps.wapplr?.ref || schemaProps.ref;
         const array = typeof schemaProps.type === "object" && typeof schemaProps.type.length === "number";
         const findForValidate = schemaProps.wapplr?.findForValidate || {};
         if (ref){

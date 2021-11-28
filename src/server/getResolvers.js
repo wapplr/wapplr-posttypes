@@ -15,7 +15,7 @@ export function getHelpersForResolvers(p = {}) {
 
     const objectIdPattern = /^[0-9A-Fa-f]{24}$/;
 
-    function filterInputRecord(record, parentKey, schema = jsonSchema) {
+    function filterInputRecord(permissions, record, parentKey, schema = jsonSchema) {
 
         const filteredRecord = {};
         let allRequiredFieldsAreProvided = !!(record);
@@ -28,82 +28,99 @@ export function getHelpersForResolvers(p = {}) {
 
                 const innerSchema = schema.properties[key];
                 const value = record[key];
-                const xRef = innerSchema["x-ref"];
-                const readOnly = !!(innerSchema.wapplr && innerSchema.wapplr.readOnly);
-                const disabled = !!(innerSchema.wapplr && innerSchema.wapplr.disabled);
-                const required = !!(innerSchema.wapplr && innerSchema.wapplr.required);
-                const pattern = (innerSchema.wapplr && innerSchema.wapplr.pattern) ?
+                const ref = innerSchema.wapplr?.ref || innerSchema.ref || innerSchema["x-ref"];
+                const readOnly = !!(innerSchema.wapplr?.readOnly);
+                const disabled = !!(innerSchema.wapplr?.disabled);
+                const required = !!(innerSchema.wapplr?.required || innerSchema.required);
+                const pattern = (innerSchema.wapplr?.pattern) ?
                     innerSchema.wapplr.pattern :
                     (innerSchema.pattern) ?
                         new RegExp(innerSchema.pattern) :
                         (innerSchema.items?.pattern) ?
                             new RegExp(innerSchema.items?.pattern) :
-                            (xRef) ?
+                            (ref) ?
                                 objectIdPattern : null;
+
+                const writeCondition = innerSchema.wapplr?.writeCondition;
+                const canWriteAdmin = (writeCondition === "admin");
+                const canWriteAuthorOrAdmin = (permissions?.post?._id && !canWriteAdmin);
+                const canWriteEverybody = (!permissions?.post?._id && !canWriteAdmin);
 
                 const validationMessage = (innerSchema.wapplr && typeof innerSchema.wapplr.validationMessage == "string") ? innerSchema.wapplr.validationMessage : "";
 
                 const nextKey = (parentKey) ? parentKey + "." + key : key;
 
-                if (!readOnly && !disabled) {
-                    if (innerSchema.type === "object" && innerSchema.properties) {
-                        if (value && typeof value == "object") {
-                            const filteredInputResponse = filterInputRecord(value, nextKey, innerSchema);
-                            if (filteredInputResponse.record && typeof filteredInputResponse.record == "object") {
-                                filteredRecord[key] = filteredInputResponse.record;
-                            }
-                            if (filteredInputResponse.allRequiredFieldsAreProvided === false){
-                                allRequiredFieldsAreProvided = false;
-                                missingFields.push(...filteredInputResponse.missingFields)
-                            }
-                            if (filteredInputResponse.allFieldsAreValid === false){
-                                allFieldsAreValid = false;
-                                invalidFields.push(...filteredInputResponse.invalidFields)
-                            }
-                        } else {
-                            if (required || JSON.stringify(innerSchema).match(/"required":true/g)){
-                                allRequiredFieldsAreProvided = false;
-                                missingFields.push({path: "record."+nextKey, message: messages.missingData})
-                            }
-                        }
-                    } else {
+                if (typeof value !== "undefined" && !readOnly && !disabled) {
 
-                        const valueType = (value && typeof value === "object" && typeof value.length === "number") ? "array" : typeof value;
-                        if ((value !== null && value !== undefined && innerSchema.type && valueType === innerSchema.type)) {
+                    if (
+                        (canWriteEverybody) ||
+                        (canWriteAuthorOrAdmin && permissions?.editorIsAuthorOrAdmin) ||
+                        (canWriteAdmin && permissions?.editorIsAdmin)
+                    ){
 
-                            let invalidArrayItems = false;
-                            if (valueType === "array"){
-                                if (pattern && value.filter((item)=>item && item.toString().match(pattern)).length !== value.length){
-                                    invalidArrayItems = true;
+                        if (innerSchema.type === "object" && innerSchema.properties) {
+                            if (value && typeof value == "object") {
+                                const filteredInputResponse = filterInputRecord(permissions, value, nextKey, innerSchema);
+                                if (filteredInputResponse.record && typeof filteredInputResponse.record == "object") {
+                                    filteredRecord[key] = filteredInputResponse.record;
+                                }
+                                if (filteredInputResponse.allRequiredFieldsAreProvided === false){
+                                    allRequiredFieldsAreProvided = false;
+                                    missingFields.push(...filteredInputResponse.missingFields)
+                                }
+                                if (filteredInputResponse.allFieldsAreValid === false){
+                                    allFieldsAreValid = false;
+                                    invalidFields.push(...filteredInputResponse.invalidFields)
+                                }
+                            } else {
+                                if (required || JSON.stringify(innerSchema).match(/"required":true/g)){
+                                    allRequiredFieldsAreProvided = false;
+                                    missingFields.push({path: "record."+nextKey, message: messages.missingData})
                                 }
                             }
+                        } else {
 
-                            if ((valueType !== "array" && pattern && value.toString().match(pattern)) || (valueType !== "array" && !pattern) || (!invalidArrayItems && valueType === "array")) {
-                                filteredRecord[key] = value;
+                            const valueType = (value && typeof value === "object" && typeof value.length === "number") ? "array" : typeof value;
+                            if ((value !== null && value !== undefined && innerSchema.type && valueType === innerSchema.type)) {
+
+                                let invalidArrayItems = false;
+                                if (valueType === "array"){
+                                    if (pattern && value.filter((item)=>item && item.toString().match(pattern)).length !== value.length){
+                                        invalidArrayItems = true;
+                                    }
+                                }
+
+                                if ((valueType !== "array" && pattern && value.toString().match(pattern)) || (valueType !== "array" && !pattern) || (!invalidArrayItems && valueType === "array")) {
+                                    filteredRecord[key] = value;
+                                } else {
+
+                                    allFieldsAreValid = false;
+                                    invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
+
+                                    if (required && !value){
+                                        allRequiredFieldsAreProvided = false;
+                                        missingFields.push({path: "record."+nextKey, message: messages.missingData});
+                                    }
+
+                                }
+
                             } else {
-
-                                allFieldsAreValid = false;
-                                invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
-
-                                if (required && !value){
+                                if ((pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
+                                    allFieldsAreValid = false;
+                                    invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
+                                }
+                                if (required){
                                     allRequiredFieldsAreProvided = false;
                                     missingFields.push({path: "record."+nextKey, message: messages.missingData});
+                                } else if (value === null) {
+                                    filteredRecord[key] = value;
                                 }
-
-                            }
-
-                        } else {
-                            if ((pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
-                                allFieldsAreValid = false;
-                                invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
-                            }
-                            if (required){
-                                allRequiredFieldsAreProvided = false;
-                                missingFields.push({path: "record."+nextKey, message: messages.missingData});
-                            } else if (value === null) {
-                                filteredRecord[key] = value;
                             }
                         }
+
+                    } else {
+                        allFieldsAreValid = false;
+                        invalidFields.push({path: "record."+nextKey, message: messages.accessDenied});
                     }
                 }
 
@@ -169,26 +186,36 @@ export function getHelpersForResolvers(p = {}) {
 
     async function getInput(p = {}, inputPost) {
 
-        const {req, res, args = {}} = p;
+        const {req, res, args = {}, resolverProperties} = p;
         const reqUser = req.wappRequest.user;
         const {record, filter} = args;
 
         const findProps = getFindProps(args);
-        const post = inputPost || await getPost(findProps);
+        const post = (resolverProperties?.skipInputPost) ? null : (inputPost) ? inputPost : await getPost(findProps);
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
-        const author = (post && post._author) ? (post._author._id) ? post._author._id : post._author : filter?._author ? filter._author : null;
+
+        const authorModelName = jsonSchema.properties?._author?.ref || "User";
+        const AuthorModel = Model.database.getModel({modelName: authorModelName});
+        const filterAuthorObject = (filter?._author && resolverProperties?.enableFilterAuthor) ? await AuthorModel.findById(filter._author) : null;
+
+        const author = post?._author?._id || post?._author || filterAuthorObject?._id;
+
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && editor._status_isFeatured);
         const editorIsNotDeleted = !!(editor && editor._id && editor._status_isNotDeleted);
         const editorIsValidated = !!(editor && editor._id && editor._status_isValidated);
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
         const authorIsNotDeleted = !!(
-            (post && typeof post._author_status_isNotDeleted !== "undefined") ? post._author_status_isNotDeleted :
-                (post && author && authorStatusManager.isNotDeleted({_id: author, _status: post._author_status}))
+            (!post && !author) ? true :
+                (filterAuthorObject && author) ?
+                    filterAuthorObject._status_isNotDeleted :
+                    (post && typeof post._author_status_isNotDeleted !== "undefined") ?
+                        post._author_status_isNotDeleted :
+                        (post && author && authorStatusManager.isNotDeleted({_id: author, _status: post._author_status}))
         );
 
-        const filteredRecordResponse = filterInputRecord(record);
+        const filteredRecordResponse = filterInputRecord({editorIsAuthorOrAdmin, editorIsAdmin, post}, record);
         const filteredRecord = filteredRecordResponse.record;
         const allRequiredFieldsAreProvided = filteredRecordResponse.allRequiredFieldsAreProvided;
         const missingFields = filteredRecordResponse.missingFields;
@@ -264,6 +291,26 @@ export function getHelpersForResolvers(p = {}) {
                     }
                 }
 
+                const required = !!(innerSchema.wapplr?.required || innerSchema.required);
+
+                if (required && filteredRecord[key] == null){
+
+                    const defaultValue =  (typeof innerSchema.wapplr?.default !== "undefined") ? innerSchema.wapplr.default : innerSchema.default;
+                    if (typeof defaultValue !== "undefined") {
+                        filteredRecord[key] = defaultValue;
+                    } else {
+                        if (innerSchema.type === "string"){
+                            filteredRecord[key] = "";
+                        } else if (innerSchema.type === "number"){
+                            filteredRecord[key] = 0;
+                        } else if (innerSchema.type === "boolean"){
+                            filteredRecord[key] = false;
+                        } else {
+                            filteredRecord[key] = "";
+                        }
+                    }
+                }
+
             }))
         }
 
@@ -272,7 +319,7 @@ export function getHelpersForResolvers(p = {}) {
 
     async function getOutput(p = {}) {
 
-        const {req, res, args, response, userBeforeRequest, inputBeforeRequest} = p;
+        const {req, res, args, resolverProperties, response, userBeforeRequest, inputBeforeRequest} = p;
 
         if (
             (req.user?._id && response?._id && req.user._id.toString() === response._id.toString()) ||
@@ -292,7 +339,7 @@ export function getHelpersForResolvers(p = {}) {
             (!userBeforeRequest && !req.wappRequest.user)
         );
 
-        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args});
+        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args, resolverProperties});
 
         let filteredResponse;
 
@@ -314,7 +361,7 @@ export function getHelpersForResolvers(p = {}) {
                 filteredResponse.items = await Promise.all(items.map(async function (post) {
                     post = (post && post.toObject) ? post.toObject() : post;
                     if (post && post._id){
-                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
                         return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                     }
                     return post;
@@ -323,7 +370,7 @@ export function getHelpersForResolvers(p = {}) {
                 filteredResponse.records = await Promise.all(records.map(async function (post) {
                     post = (post && post.toObject) ? post.toObject() : post;
                     if (post && post._id){
-                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
                         return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                     }
                     return post;
@@ -337,7 +384,7 @@ export function getHelpersForResolvers(p = {}) {
             filteredResponse = await Promise.all(response.map(async function (post) {
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
-                    const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args}, post);
+                    const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
                     return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                 }
                 return post;
@@ -430,13 +477,13 @@ export function getHelpersForResolvers(p = {}) {
                     const {req, res} = context;
 
                     const reqUser = req.wappRequest.user;
-                    const input = await getInput({req, res, args});
+                    const input = await getInput({req, res, args, resolverProperties: rP});
 
-                    const response = await resolve({...p, input, resolverProperties, defaultResolver});
+                    const response = await resolve({...p, input, resolverProperties: rP, defaultResolver});
 
                     composeValidationError(p, response);
 
-                    return await getOutput({req, res, args, response, userBeforeRequest: reqUser, inputBeforeRequest: input})
+                    return await getOutput({req, res, args, resolverProperties: rP, response, userBeforeRequest: reqUser, inputBeforeRequest: input})
 
                 }
             }
@@ -497,6 +544,7 @@ export default function getResolvers(p = {}) {
     const resolvers = {
         new: {
             extendResolver: "createOne",
+            skipInputPost: true,
             resolve: async function ({input}){
                 const {args, editor, editorIsValidated, allRequiredFieldsAreProvided, allFieldsAreValid, mergedErrorFields, editorIsAdmin} = input;
                 const {record, _author} = args;
@@ -868,6 +916,8 @@ export default function getResolvers(p = {}) {
 
             return {
                 extendResolver: "paginationWithSearch",
+                skipInputPost: true,
+                enableFilterAuthor: true,
                 wapplr: {
                     perPage: {
                         wapplr: {
