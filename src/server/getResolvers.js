@@ -32,21 +32,34 @@ export function getHelpersForResolvers(p = {}) {
                 const readOnly = !!(innerSchema.wapplr?.readOnly);
                 const disabled = !!(innerSchema.wapplr?.disabled);
                 const required = !!(innerSchema.wapplr?.required || innerSchema.required);
-                const pattern = (innerSchema.wapplr?.pattern) ?
+                let pattern = (innerSchema.wapplr?.pattern) ?
                     innerSchema.wapplr.pattern :
                     (innerSchema.pattern) ?
-                        new RegExp(innerSchema.pattern) :
+                        innerSchema.pattern :
                         (innerSchema.items?.pattern) ?
-                            new RegExp(innerSchema.items?.pattern) :
+                            innerSchema.items?.pattern :
                             (ref) ?
                                 objectIdPattern : null;
+
+                if (typeof pattern === "string"){
+                    pattern = new RegExp(pattern);
+                }
+
+                const validationMessage = (innerSchema.wapplr && typeof innerSchema.wapplr.validationMessage == "string") ? innerSchema.wapplr.validationMessage : messages.invalidData;
+                let validationMessageForValidate = validationMessage;
+
+                let validate = (innerSchema.wapplr?.validate || innerSchema.validate);
+                if (typeof validate === "object" && typeof validate.length === "number"){
+                    if (typeof validate[1] === "string"){
+                        validationMessageForValidate = validate[1];
+                    }
+                    validate = validate[0];
+                }
 
                 const writeCondition = innerSchema.wapplr?.writeCondition;
                 const canWriteAdmin = (writeCondition === "admin");
                 const canWriteAuthorOrAdmin = (permissions?.post?._id && !canWriteAdmin);
                 const canWriteEverybody = (!permissions?.post?._id && !canWriteAdmin);
-
-                const validationMessage = (innerSchema.wapplr && typeof innerSchema.wapplr.validationMessage == "string") ? innerSchema.wapplr.validationMessage : "";
 
                 const nextKey = (parentKey) ? parentKey + "." + key : key;
 
@@ -83,6 +96,8 @@ export function getHelpersForResolvers(p = {}) {
                             const valueType = (value && typeof value === "object" && typeof value.length === "number") ? "array" : typeof value;
                             if ((value !== null && value !== undefined && innerSchema.type && valueType === innerSchema.type)) {
 
+                                const validByValidate = ((validate && validate(value)) || !validate);
+
                                 let invalidArrayItems = false;
                                 if (valueType === "array"){
                                     if (pattern && value.filter((item)=>item && item.toString().match(pattern)).length !== value.length){
@@ -90,12 +105,17 @@ export function getHelpersForResolvers(p = {}) {
                                     }
                                 }
 
-                                if ((valueType !== "array" && pattern && value.toString().match(pattern)) || (valueType !== "array" && !pattern) || (!invalidArrayItems && valueType === "array")) {
+                                if (
+                                    (validByValidate && valueType !== "array" && pattern && value.toString().match(pattern)) ||
+                                    (validByValidate && valueType !== "array" && !pattern) ||
+                                    (validByValidate && !invalidArrayItems && valueType === "array")
+                                ) {
                                     filteredRecord[key] = value;
+
                                 } else {
 
                                     allFieldsAreValid = false;
-                                    invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
+                                    invalidFields.push({path: "record."+nextKey, message: !validByValidate ? validationMessageForValidate : validationMessage});
 
                                     if (required && !value){
                                         allRequiredFieldsAreProvided = false;
@@ -105,9 +125,12 @@ export function getHelpersForResolvers(p = {}) {
                                 }
 
                             } else {
-                                if ((pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
+
+                                const validByValidate = ((validate && validate(value)) || !validate);
+
+                                if ((validByValidate && pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
                                     allFieldsAreValid = false;
-                                    invalidFields.push({path: "record."+nextKey, message: validationMessage || messages.invalidData});
+                                    invalidFields.push({path: "record."+nextKey, message: !validByValidate ? validationMessageForValidate : validationMessage});
                                 }
                                 if (required){
                                     allRequiredFieldsAreProvided = false;
@@ -695,7 +718,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.setDeletedStatus(post);
-                    const savedPost = await post.save();
+                    const savedPost = await post.save({validateBeforeSave: false});
                     return {
                         record: savedPost,
                     }
@@ -731,7 +754,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.setApproveStatus(post);
-                    const savedPost = await post.save();
+                    const savedPost = await post.save({validateBeforeSave: false});
                     return {
                         record: savedPost,
                     }
@@ -782,7 +805,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.setFeaturedStatus(post);
-                    const savedPost = await post.save();
+                    const savedPost = await post.save({validateBeforeSave: false});
                     return {
                         record: savedPost,
                     }
@@ -833,7 +856,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.removeFeaturedStatus(post, masterCode);
-                    const savedPost = await post.save();
+                    const savedPost = await post.save({validateBeforeSave: false});
                     return {
                         record: savedPost,
                     }
@@ -869,7 +892,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     statusManager.setBanStatus(post);
-                    const savedPost = await post.save();
+                    const savedPost = await post.save({validateBeforeSave: false});
                     return {
                         record: savedPost,
                     }

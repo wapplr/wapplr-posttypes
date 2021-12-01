@@ -60,6 +60,7 @@ export default function getModel(p = {}) {
             type: mongoose.Schema.Types.Date,
             index: true,
             wapplr: {
+                required: true,
                 readOnly: true,
                 listData: {
                     sort: {
@@ -83,8 +84,9 @@ export default function getModel(p = {}) {
         },
         _author: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: authorModelName,
             wapplr: {
+                ref: authorModelName,
+                required: true,
                 readOnly: true,
                 listData: {
                     list: {
@@ -95,9 +97,10 @@ export default function getModel(p = {}) {
         },
         _status: {
             type: Number,
-            default: statusManager.getDefaultStatus(),
             index: true,
             wapplr: {
+                default: statusManager.getDefaultStatus(),
+                required: true,
                 readOnly: true,
                 listData: {
                     sort: {
@@ -120,6 +123,7 @@ export default function getModel(p = {}) {
             type: Number,
             index: true,
             wapplr: {
+                required: true,
                 readOnly: true,
                 listData: {
                     sort: {
@@ -142,9 +146,12 @@ export default function getModel(p = {}) {
             if (!field.type && Object.keys(field).length && key !== "wapplr"){
                 rec(field);
             } else {
-                ["default", "required", "unique", "ref"].forEach((saveKey)=> {
+                ["default", "required", "unique", "ref", "validate"].forEach((saveKey)=> {
                     if (typeof field[saveKey] === "undefined" && field.wapplr && typeof field.wapplr[saveKey] !== "undefined"){
                         field[saveKey] = field.wapplr[saveKey];
+                        if (saveKey === "validate" && typeof field.wapplr[saveKey] === "function" && field.wapplr.validationMessage){
+                            field[saveKey] = [field.wapplr[saveKey], field.wapplr.validationMessage]
+                        }
                     }
                     if (typeof field[saveKey] !== "undefined" && field.wapplr && typeof field.wapplr[saveKey] == "undefined"){
                         field.wapplr[saveKey] = field[saveKey];
@@ -273,10 +280,13 @@ export default function getModel(p = {}) {
     modelSchema.add(schemaFields);
 
     Object.keys(schemaFields).forEach((path)=>{
+
         const schemaProps = schemaFields[path];
         const ref = schemaProps.wapplr?.ref || schemaProps.ref;
         const array = typeof schemaProps.type === "object" && typeof schemaProps.type.length === "number";
         const findForValidate = schemaProps.wapplr?.findForValidate || {};
+        const disableFindByAuthor = schemaProps.wapplr?.disableFindByAuthor || false;
+
         if (ref){
             modelSchema.path(path).validate(async function (value) {
                 if (!value){
@@ -289,6 +299,12 @@ export default function getModel(p = {}) {
 
                 const author = this._author;
                 Model = database.getModel({modelName: ref});
+
+                const defaultFindProps = {
+                    ...findForValidate,
+                    ...(!disableFindByAuthor) ? {_author: author} : {}
+                };
+
                 if (array){
                     if (typeof value === "object" && typeof value.length === "number"){
                         const responses = await Promise.allSettled(value.map(async (item)=>{
@@ -296,7 +312,7 @@ export default function getModel(p = {}) {
                                 return true;
                             }
                             try {
-                                const posts = await Model.find({...findForValidate, _id: item, _author: author});
+                                const posts = await Model.find({...defaultFindProps, _id: item});
                                 return !!(posts?.length);
                             } catch (e) {
                                 throw e;
@@ -311,7 +327,7 @@ export default function getModel(p = {}) {
                         return true;
                     }
                     try {
-                        const posts = await Model.find({...findForValidate, _id: value, _author: author});
+                        const posts = await Model.find({...defaultFindProps, _id: value});
                         return !!(posts?.length);
                     } catch (e) {
                         throw e;
