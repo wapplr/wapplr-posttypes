@@ -67,7 +67,7 @@ export default function getModel(p = {}) {
                         ascLabel: labels[ns+"Sort_CREATEDDATE_ASC"],
                         descLabel: labels[ns+"Sort_CREATEDDATE_DESC"],
                         default: "DESC",
-                        order: 0
+                        order: 100
                     },
                     list: {
                         show: false
