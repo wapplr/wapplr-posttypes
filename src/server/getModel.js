@@ -340,7 +340,7 @@ export default function getModel(p = {}) {
     modelSchema.pre("save", async function(next) {
         if (modelSchema.tree) {
             Object.keys(modelSchema.tree).forEach((path) => {
-                if (typeof this[path] !== "undefined" && this.isModified(path) && this[path].length && Array.isArray(this[path])) {
+                if (typeof this[path] !== "undefined" && this.isModified(path) && this[path]?.length && Array.isArray(this[path])) {
                     const notSortable = !(modelSchema.tree[path].wapplr?.multiple && modelSchema.tree[path].wapplr?.sortable);
                     if (notSortable) {
                         this[path] = this[path].sort();
