@@ -4,6 +4,7 @@ import { GraphQLError } from "graphql-compose/lib/graphql";
 
 import {capitalize} from "../common/utils";
 import getConstants from "./getConstants";
+import {copyObject} from "wapplr/dist/common/utils";
 
 export function getHelpersForResolvers(p = {}) {
 
@@ -164,6 +165,48 @@ export function getHelpersForResolvers(p = {}) {
         }
     }
 
+    function checkInputFilter(filter, parentKey, schema = jsonSchema) {
+
+        const filteredFilter = {};
+
+        if (schema.type === "object" && schema.properties && filter){
+            Object.keys(filter).forEach(function (key) {
+
+                const value = filter[key];
+                const innerSchema = schema.properties[key];
+
+                if (innerSchema){
+                    const nextKey = (parentKey) ? parentKey + "." + key : key;
+                    if (typeof value !== "undefined") {
+
+                        if (innerSchema.type === "object" && innerSchema.properties) {
+                            if (value && typeof value == "object" && !Array.isArray(value)) {
+                                const filteredInputResponse = checkInputFilter(value, nextKey, innerSchema);
+                                if (filteredInputResponse.filter && typeof filteredInputResponse.filter == "object") {
+                                    filteredFilter[key] = filteredInputResponse.filter;
+                                }
+                            } else {
+                                filteredFilter[key] = value;
+                            }
+                        } else {
+                            if (innerSchema.type === "array" && Array.isArray(value)){
+                                filteredFilter[key] = {$in: value}
+                            } else {
+                                filteredFilter[key] = value;
+                            }
+                        }
+                    }
+                } else {
+                    filteredFilter[key] = value;
+                }
+            })
+        }
+
+        return {
+            filter: (Object.keys(filteredFilter).length || typeof record == "object") ? filteredFilter : null,
+        }
+    }
+
     async function getPost(p) {
         if (p && Object.keys(p).length){
             const post = await Model.findOne({...p});
@@ -196,12 +239,15 @@ export function getHelpersForResolvers(p = {}) {
 
     function getFilteredArgs(args = {}, filteredRecord) {
 
-        const filteredArgs = {
-            ...args,
-        };
+        const filteredArgs = copyObject(args);
 
         if (filteredRecord){
-            filteredArgs.record = filteredRecord;
+            filteredArgs.record = copyObject(filteredRecord);
+        }
+
+        if (filteredArgs.filter){
+            const checkedFilter = checkInputFilter(filteredArgs.filter);
+            filteredArgs.filter = copyObject(checkedFilter.filter);
         }
 
         return filteredArgs;
@@ -952,7 +998,8 @@ export default function getResolvers(p = {}) {
                 },
                 resolve: async function(p) {
 
-                    const {defaultResolver, args, input} = p;
+                    const {defaultResolver, input} = p;
+                    const {args} = input;
                     const {filter = {}} = args;
                     const {_operators = {}} = filter;
 
@@ -1010,7 +1057,7 @@ export default function getResolvers(p = {}) {
 
                     }
 
-                    const r = await defaultResolver.resolve(p);
+                    const r = await defaultResolver.resolve({...p, args});
                     if (r.pageInfo){
                         r.pageInfo.sort = (typeof args.sort === "object" && Object.keys(args.sort) && input.req.body.variables?.sort) || null
                     }
