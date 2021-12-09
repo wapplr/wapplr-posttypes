@@ -7,7 +7,7 @@ export default function getModel(p = {}) {
     const {name = "post", config = {}} = p;
 
     const n = name;
-    const ns = n+"s";
+    const ns = (n.endsWith("y")) ? n.slice(-1)+"ies" : n+"s";
     const N = capitalize(n);
 
     const defaultConstants = getConstants(p);
