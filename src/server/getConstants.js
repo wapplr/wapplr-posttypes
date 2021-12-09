@@ -4,7 +4,7 @@ export default function getConstants(p = {}) {
 
     const {name = "post"} = p;
     const n = name;
-    const ns = (n.endsWith("y")) ? n.slice(-1)+"ies" : n+"s";
+    const ns = (n.endsWith("y")) ? n.slice(0,-1)+"ies" : n+"s";
     const N = capitalize(n);
 
     const messages = {
