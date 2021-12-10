@@ -8,12 +8,15 @@ export default function getConstants(p = {}) {
     const N = capitalize(n);
 
     const messages = {
-        ["save"+N+"DefaultFail"]: "Sorry, there was an issue save the "+n+", please try again",
         invalidData: "Invalid data",
         missingData: "Missing data",
         lowStatusLevel: "Your status level is too low to perform the operation",
+        accessDenied: "You do not have permission to perform that operation",
+        invalidUniqueValue: ({path})=>"Invalid unique value on "+path+" field, value: \"{VALUE}\"",
+        invalidRefValue: ({path})=>"Invalid reference ID on "+path+" field, value: \"{VALUE}\"",
+
+        ["save"+N+"DefaultFail"]: "Sorry, there was an issue save the "+n+", please try again",
         [n+"NotFound"]: N + " not found",
-        accessDenied: "You do not have permission to perform that operation"
     };
 
     const labels = {

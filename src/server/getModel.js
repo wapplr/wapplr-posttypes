@@ -15,6 +15,7 @@ export default function getModel(p = {}) {
         statusManager,
         authorModelName = "User",
         labels = defaultConstants.labels,
+        messages = defaultConstants.messages,
         modelName = N,
         setSchemaMiddleware,
         database,
@@ -283,6 +284,7 @@ export default function getModel(p = {}) {
 
         const schemaProps = schemaFields[path];
         const ref = schemaProps.wapplr?.ref || schemaProps.ref;
+        const unique = schemaProps.wapplr?.unique || schemaProps.unique;
         const array = typeof schemaProps.type === "object" && typeof schemaProps.type.length === "number";
         const findForValidate = schemaProps.wapplr?.findForValidate || {};
         const disableFindByAuthor = schemaProps.wapplr?.disableFindByAuthor || false;
@@ -333,8 +335,29 @@ export default function getModel(p = {}) {
                         throw e;
                     }
                 }
-            }, "Invalid value [{VALUE}]")
+            }, (messages.invalidRefValue) ? messages.invalidRefValue({path}) : "Invalid ref value [{VALUE}]")
         }
+
+        if (unique) {
+            modelSchema.path(path).validate(async function (value) {
+                if (!value){
+                    return true;
+                }
+                const isModified = this.isModified(path);
+                if (!isModified){
+                    return true;
+                }
+
+                try {
+                    const Model = database.getModel({modelName});
+                    const post = await Model.findOne({ [path]: value });
+                    return (!post?._id);
+                } catch (e){
+                    throw e;
+                }
+            }, (messages.invalidUniqueValue) ? messages.invalidUniqueValue({path}) : "Invalid unique value [{VALUE}]")
+        }
+
     });
 
     if (setSchemaMiddleware){
