@@ -1060,7 +1060,7 @@ export default function getResolvers(p = {}) {
 
                     const r = await defaultResolver.resolve({...p, args});
                     if (r.pageInfo){
-                        r.pageInfo.sort = (typeof args.sort === "object" && Object.keys(args.sort) && input.req.body.variables?.sort) || null
+                        r.pageInfo.sort = (Array.isArray(args.sort) && Array.isArray(input.req.body.variables?.sort) && input.req.body.variables.sort.join(",")) || null
                     }
                     return r;
                 }
