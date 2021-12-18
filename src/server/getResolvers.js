@@ -1081,6 +1081,7 @@ export default function getResolvers(p = {}) {
                 ...rest,
                 Model,
                 statusManager,
+                authorStatusManager,
                 authorModelName,
                 database,
                 messages,

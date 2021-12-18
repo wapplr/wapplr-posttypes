@@ -112,7 +112,7 @@ export default function getModel(p = {}) {
                     },
                     table: {
                         componentName: "Status",
-                        role: "isAuthorOrAdmin",
+                        role: "isAdminOrAuthorIfPostDeleted",
                         label: labels[n+"StatusLabel"],
                         icon: "status",
                         order: 100,
