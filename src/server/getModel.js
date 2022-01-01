@@ -63,6 +63,7 @@ export default function getModel(p = {}) {
             wapplr: {
                 required: true,
                 readOnly: true,
+                default: new Date("2000"),
                 listData: {
                     sort: {
                         ascLabel: labels[ns+"Sort_CREATEDDATE_ASC"],
