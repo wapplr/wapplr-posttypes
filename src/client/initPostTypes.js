@@ -17,7 +17,12 @@ function getDefaultPostTypesManager(p = {}) {
             },
             subscribeUpdateFindById: {
                 ...defaultDescriptor,
-                value: function subscribeUpdateFindById() {
+                value: function subscribeUpdateFindById(p = {}) {
+
+                    const {
+                        addKeys = [],
+                        keys = [name+"New", name+"Save", name+"Delete", name+"Approve", name+"Featured", name+"RemoveFeatured", name+"Ban", ...addKeys]
+                    } = p;
 
                     if (wapp.states) {
                         const statesHandleName = "subscribeUpdate" + name.slice(0, 1).toUpperCase() + name.slice(1)+"FindById";
@@ -35,7 +40,6 @@ function getDefaultPostTypesManager(p = {}) {
 
                                     if (type === "INS_RES" && payload.name === "responses"){
 
-                                        const keys = [name+"New", name+"Save", name+"Delete", name+"Approve", name+"Featured", name+"RemoveFeatured", name+"Ban"];
                                         const response = payload.value;
                                         let foundEnabledKeys = false;
                                         const findByIdBeforeUpdate =  wappResponse.store.getState("res.responses."+name+"FindById");
