@@ -1007,7 +1007,7 @@ export default function getResolvers(p = {}) {
 
                     const {editorIsAdmin, editorIsAuthor} = input;
 
-                    if (!args.perPage || args.perPage < 1 || args.perPage > perPage.limit){
+                    if (!args.perPage || args.perPage < 1 || (args.perPage > perPage.limit && !editorIsAdmin)){
                         args.perPage = perPage.default;
                     }
 
