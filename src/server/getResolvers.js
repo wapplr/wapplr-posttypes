@@ -992,7 +992,7 @@ export default function getResolvers(p = {}) {
                 wapplr: {
                     perPage: {
                         wapplr: {
-                            clientData: {
+                            listData: {
                                 perPage
                             }
                         }

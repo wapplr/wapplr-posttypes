@@ -50,7 +50,7 @@ export default function getModel(p = {}) {
             wapplr: {
                 readOnly: true,
                 formData: { hidden: true },
-                clientData: {
+                listData: {
                     sort: {
                         disabled: true,
                     }
@@ -64,7 +64,7 @@ export default function getModel(p = {}) {
                 required: true,
                 readOnly: true,
                 default: new Date("2000"),
-                clientData: {
+                listData: {
                     sort: {
                         ascLabel: labels[ns+"Sort_CREATEDDATE_ASC"],
                         descLabel: labels[ns+"Sort_CREATEDDATE_DESC"],
@@ -90,7 +90,7 @@ export default function getModel(p = {}) {
                 ref: authorModelName,
                 required: true,
                 readOnly: true,
-                clientData: {
+                listData: {
                     list: {
                         show: "header"
                     }
@@ -104,7 +104,7 @@ export default function getModel(p = {}) {
                 default: statusManager.getDefaultStatus(),
                 required: true,
                 readOnly: true,
-                clientData: {
+                listData: {
                     sort: {
                         disabled: true,
                     },
@@ -127,7 +127,7 @@ export default function getModel(p = {}) {
             wapplr: {
                 required: true,
                 readOnly: true,
-                clientData: {
+                listData: {
                     sort: {
                         disabled: true,
                     }
