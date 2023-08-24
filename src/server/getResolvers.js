@@ -409,7 +409,18 @@ export function getHelpersForResolvers(p = {}) {
             (!userBeforeRequest && !req.wappRequest.user)
         );
 
-        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = (sameUser) ? inputBeforeRequest : await getInput({req, res, args, resolverProperties});
+        const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} =
+            (sameUser) ?
+                inputBeforeRequest :
+                await getInput({
+                    req,
+                    res,
+                    args,
+                    resolverProperties: {
+                        ...resolverProperties,
+                        skipInputPost: resolverProperties.noSkipInputPostWhenUserChanged ? false : resolverProperties.skipInputPost
+                    }
+                });
 
         let filteredResponse;
 
@@ -577,6 +588,21 @@ export function getHelpersForResolvers(p = {}) {
 
 }
 
+export function mongooseValidationErrorOrNot(e, defaultErrorMessage = "Error") {
+    if (e.errors && Object.keys(e.errors).length){
+        return {
+            error: {
+                message:  e.errors[Object.keys(e.errors)[0]]?.message || e.message || defaultErrorMessage,
+                errors: Object.keys(e.errors).map((key)=>({path: "record."+e.errors[key].path, message: e.errors[key].message}))
+            },
+        }
+    }
+
+    return {
+        error: {message: e.message || defaultErrorMessage},
+    }
+}
+
 export default function getResolvers(p = {}) {
 
     const {wapp, name = "post"} = p;
@@ -610,21 +636,6 @@ export default function getResolvers(p = {}) {
     const authorStatusManager = config.authorStatusManager || statusManager;
 
     const AuthorModel = database.getModel({modelName: authorModelName});
-
-    function mongooseValidationErrorOrNot(e) {
-        if (e.errors && Object.keys(e.errors).length){
-            return {
-                error: {
-                    message:  e.errors[Object.keys(e.errors)[0]]?.message || e.message || messages["save"+N+"DefaultFail"],
-                    errors: Object.keys(e.errors).map((key)=>({path: "record."+e.errors[key].path, message: e.errors[key].message}))
-                },
-            }
-        }
-
-        return {
-            error: {message: e.message || messages["save"+N+"DefaultFail"]},
-        }
-    }
 
     const resolvers = {
         new: {
@@ -665,7 +676,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
 
             },
@@ -748,7 +759,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
             },
         },
@@ -781,7 +792,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
 
             },
@@ -815,7 +826,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
 
             },
@@ -864,7 +875,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
 
             },
@@ -913,7 +924,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
 
             },
@@ -947,7 +958,7 @@ export default function getResolvers(p = {}) {
                         record: savedPost,
                     }
                 } catch (e){
-                    return mongooseValidationErrorOrNot(e)
+                    return mongooseValidationErrorOrNot(e, messages["save"+N+"DefaultFail"])
                 }
             },
         },
