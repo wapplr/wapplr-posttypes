@@ -344,7 +344,7 @@ export function getHelpersForResolvers(p = {}) {
                                 } else {
                                     filteredRecord[key] =
                                         (finalDataFilter) ?
-                                            finalDataFilter({
+                                            await finalDataFilter({
                                                 value,
                                                 record,
                                                 isAdmin,
