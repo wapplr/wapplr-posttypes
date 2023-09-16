@@ -253,11 +253,76 @@ export function getHelpersForResolvers(p = {}) {
         return filteredArgs;
     }
 
+    function transformInputArgs(args = {}, resolverProperties) {
+
+        try {
+
+            const transforms = {
+                lowercase: (s)=>{
+                    if (s && s.toLowerCase) {
+                        return s.toLowerCase()
+                    }
+                    return s;
+                },
+                trim: (s)=>{
+                    if (s && s.trim) {
+                        return s.trim()
+                    }
+                    return s;
+                }
+            };
+
+            function rec (args, jsonSchema, resolverProperties) {
+
+                Object.keys(args).forEach((key) => {
+
+                    const properties = {
+                        ...jsonSchema?.properties && jsonSchema.properties[key]?.wapplr ? jsonSchema.properties[key]?.wapplr : {},
+                        ...resolverProperties && resolverProperties[key] && resolverProperties[key].wapplr ? resolverProperties[key].wapplr : {}
+                    };
+
+                    if (args[key] && typeof args[key] === "object" &&
+                        (
+                            (jsonSchema?.properties && jsonSchema.properties[key]?.properties) ||
+                            (resolverProperties && typeof resolverProperties[key] === 'object')
+                        )
+                    ){
+
+                        rec(args[key], jsonSchema?.properties[key], resolverProperties && resolverProperties[key]);
+
+                    } else if (properties.transform) {
+                        if (Array.isArray(properties.transform)) {
+                            properties.transform.forEach((functionName)=>{
+                                const transform = transforms[functionName];
+                                if (transform) {
+                                    args[key] = transform(args[key])
+                                }
+                            })
+                        } else if (transforms[properties.transform]) {
+                            const transform = transforms[properties.transform];
+                            args[key] = transform(args[key])
+                        }
+                    }
+                });
+            }
+
+            rec(args, jsonSchema, resolverProperties.wapplr);
+
+        } catch (e) {
+            console.log('[APP]', 'Error occurred transforming args value', e, args)
+        }
+
+    }
+
     async function getInput(p = {}, inputPost) {
 
         const {req, res, args = {}, resolverProperties} = p;
-        const reqUser = req.wappRequest.user;
+
+        transformInputArgs(args, resolverProperties);
+
         const {record, filter} = args;
+
+        const reqUser = req.wappRequest.user;
 
         const findProps = getFindProps(args);
         const post = (resolverProperties?.skipInputPost) ? null : (inputPost) ? inputPost : await getPost(findProps);
