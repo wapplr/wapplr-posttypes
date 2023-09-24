@@ -1034,6 +1034,16 @@ export default function getResolvers(p = {}) {
                 return post;
             },
         },
+        dataLoaderMany: {
+            internal: true,
+            extendResolver: "dataLoaderMany",
+            resolve: async function ({defaultResolver, input, internal, ...p}) {
+                if (!internal) {
+                    return {message: messages.accessDenied}
+                }
+                return await defaultResolver.resolve(p);
+            },
+        },
         findMany: ({TC, authorStatusManager, schemaComposer}) => {
 
             const defaultResolver = TC.getResolver("pagination").addFilterArg({
