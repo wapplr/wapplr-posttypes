@@ -331,8 +331,22 @@ export function getHelpersForResolvers(p = {}) {
 
         const authorModelName = jsonSchema.properties?._author?.ref || "User";
         const AuthorModel = Model.database.getModel({modelName: authorModelName});
-        const filterAuthorObject = (filter?._author && resolverProperties?.enableFilterAuthor) ? await AuthorModel.findById(filter._author) : null;
-        /*TODO: the _author can be in filter.OR[{_author}] too, Has to be solved it...*/
+
+        let filterAuthor = null;
+
+        if (Array.isArray(filter?.OR)) {
+            const filterAuthors = filter.OR.map((f)=>f._author);
+            const uniqueAuthors = filterAuthors.filter((value, index, array) =>{
+                return array.indexOf(value) === index;
+            });
+            if (uniqueAuthors.length === 1) {
+                filterAuthor = uniqueAuthors[0]
+            }
+        } else {
+            filterAuthor = filter?._author;
+        }
+
+        const filterAuthorObject = (filterAuthor && resolverProperties?.enableFilterAuthor) ? await AuthorModel.findById(filterAuthor) : null;
 
         const author = post?._author?._id || post?._author || filterAuthorObject?._id;
 
