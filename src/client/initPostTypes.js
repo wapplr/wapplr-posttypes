@@ -7,7 +7,7 @@ function getDefaultPostTypesManager(p = {}) {
 
     function defaultAddPostType(p = {}) {
 
-        const {name = "post", ...rest} = p;
+        const {name = "post", addKeys, keys, ...rest} = p;
         const statusManager = rest.statusManager || getStatusManager({wapp, name, ...rest});
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
@@ -94,7 +94,7 @@ function getDefaultPostTypesManager(p = {}) {
             value: defaultPostTypeObject
         });
 
-        postTypesManager.postTypes[name].subscribeUpdateFindById();
+        postTypesManager.postTypes[name].subscribeUpdateFindById({addKeys, keys});
 
         return postTypesManager.postTypes[name];
 
