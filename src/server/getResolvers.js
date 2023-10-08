@@ -70,10 +70,18 @@ export function getHelpersForResolvers(p = {}) {
                         (canWriteEverybody) ||
                         (canWriteAuthorOrAdmin && permissions?.editorIsAuthorOrAdmin) ||
                         (canWriteAdmin && permissions?.editorIsAdmin)
-                    ){
+                    ) {
+
+                        // the user has write-access to the field
 
                         if (innerSchema.type === "object" && innerSchema.properties) {
+
+                            //if a nested object according to the schema
+
                             if (value && typeof value == "object") {
+
+                                //if the value is an object, the recursive process starts and concatenates the responses
+
                                 const filteredInputResponse = filterInputRecord(permissions, value, nextKey, innerSchema);
                                 if (filteredInputResponse.record && typeof filteredInputResponse.record == "object") {
                                     filteredRecord[key] = filteredInputResponse.record;
@@ -87,62 +95,132 @@ export function getHelpersForResolvers(p = {}) {
                                     invalidFields.push(...filteredInputResponse.invalidFields)
                                 }
                             } else {
+
                                 if (required || JSON.stringify(innerSchema).match(/"required":true/g)){
+
+                                    //if the value is not an object, but its entry is required
+
                                     allRequiredFieldsAreProvided = false;
                                     missingFields.push({path: "record."+nextKey, message: messages.missingData})
                                 }
+
+                                //if it is not an object, but not required, it is simply skipped
+
                             }
                         } else {
 
-                            const valueType = (value && typeof value === "object" && typeof value.length === "number") ? "array" : typeof value;
-                            if ((value !== null && value !== undefined && innerSchema.type && valueType === innerSchema.type)) {
+                            //additional inputs that are not nested objects
+
+                            const valueType = (value && Array.isArray(value)) ? "array" : typeof value;
+
+                            const isExist = (value !== null && value !== undefined && value !== '');
+                            const isValidType = (innerSchema.type && valueType === innerSchema.type);
+                            const isValidTypeOrNull = isValidType || value === null;
+
+                            let needToValidate = true;
+
+                            if (required && !isExist) {
+
+                                // if it is required but the value is null, undefined, or an empty string
+
+                                allRequiredFieldsAreProvided = false;
+                                missingFields.push({path: "record." + nextKey, message: messages.missingData});
+                                needToValidate = false;
+
+                            }
+
+                            if (!isValidTypeOrNull) {
+
+                                // is an invalid type that is not null
+
+                                allFieldsAreValid = false;
+                                invalidFields.push({path: "record."+nextKey, message: messages.invalidData});
+                                needToValidate = false;
+
+                            }
+
+                            if (needToValidate) {
+
+                                // needs to be validated, this means based on the above that there was no type error or missing value
 
                                 const validByValidate = ((validate && validate(value)) || !validate);
 
-                                let invalidArrayItems = false;
-                                if (valueType === "array"){
-                                    if (pattern && value.filter((item)=>item && item.toString().match(pattern)).length !== value.length){
-                                        invalidArrayItems = true;
-                                    }
-                                }
+                                if (!validByValidate) {
 
-                                if (
-                                    (validByValidate && valueType !== "array" && pattern && value.toString().match(pattern)) ||
-                                    (validByValidate && valueType !== "array" && !pattern) ||
-                                    (validByValidate && !invalidArrayItems && valueType === "array")
-                                ) {
-                                    filteredRecord[key] = value;
+                                    // invalid value by the validator function
+
+                                    allFieldsAreValid = false;
+                                    invalidFields.push({path: "record."+nextKey, message: validationMessageForValidate});
 
                                 } else {
 
-                                    allFieldsAreValid = false;
-                                    invalidFields.push({path: "record."+nextKey, message: !validByValidate ? validationMessageForValidate : validationMessage});
+                                    let validByPattern = true;
 
-                                    if (required && !value){
-                                        allRequiredFieldsAreProvided = false;
-                                        missingFields.push({path: "record."+nextKey, message: messages.missingData});
+                                    if (pattern) {
+
+                                        // it is necessary to validate because there is a given pattern
+
+                                        if (valueType === "array") {
+
+                                            if (value) {
+
+                                                // the array can only contain elements that match the pattern
+
+                                                if (value.filter((item) => {
+                                                    const string = item && item.toString ? item.toString() : '';
+                                                    const isError = !string.match(pattern);
+                                                    return !isError
+                                                }).length !== value.length) {
+                                                    validByPattern = false
+                                                }
+
+                                            }
+
+                                            // allows the empty array
+
+                                        } else {
+
+                                            if ( (typeof value === 'string' && value) || value === 0 ) {
+
+                                                // if it's not an array, the pattern only checks non-empty strings and 0
+
+                                                const string = value && value.toString ? value.toString() : '';
+                                                const isError = !string.match(pattern);
+                                                if (isError) {
+                                                    validByPattern = false;
+                                                }
+
+                                            }
+
+                                        }
+
+                                    }
+
+                                    if (!validByPattern) {
+
+                                        // if it found an invalid value
+
+                                        allFieldsAreValid = false;
+                                        invalidFields.push({path: "record."+nextKey, message: validationMessage});
+
+                                    } else {
+
+                                        // if the value is valid
+
+                                        filteredRecord[key] = value;
+
                                     }
 
                                 }
 
-                            } else {
-
-                                const validByValidate = ((validate && validate(value)) || !validate);
-
-                                if ((validByValidate && pattern && value !== null && value !== undefined && value.toString && !value.toString().match(pattern))) {
-                                    allFieldsAreValid = false;
-                                    invalidFields.push({path: "record."+nextKey, message: !validByValidate ? validationMessageForValidate : validationMessage});
-                                }
-                                if (required){
-                                    allRequiredFieldsAreProvided = false;
-                                    missingFields.push({path: "record."+nextKey, message: messages.missingData});
-                                } else if (value === null) {
-                                    filteredRecord[key] = value;
-                                }
                             }
+
                         }
 
                     } else {
+
+                        // access denied
+
                         allFieldsAreValid = false;
                         invalidFields.push({path: "record."+nextKey, message: messages.accessDenied});
                     }
@@ -151,9 +229,12 @@ export function getHelpersForResolvers(p = {}) {
             })
         }
 
-        const mergedErrorFields = [...missingFields, ...invalidFields.filter(function (invalidField) {
-            return !(missingFields.filter(function (missingField) { return (missingField.path === invalidField.path) }).length)
-        })];
+        const mergedErrorFields = [
+            ...missingFields,
+            ...invalidFields.filter(function (invalidField) {
+                return !(missingFields.filter(function (missingField) { return (missingField.path === invalidField.path) }).length)
+            })
+        ];
 
         return {
             record: (Object.keys(filteredRecord).length || typeof record == "object") ? filteredRecord : null,
