@@ -180,9 +180,9 @@ export function getHelpersForResolvers(p = {}) {
 
                                         } else {
 
-                                            if ( (typeof value === 'string' && value) || value === 0 ) {
+                                            if ( (typeof value === 'string' && value) || typeof value === 'number' ) {
 
-                                                // if it's not an array, the pattern only checks non-empty strings and 0
+                                                // if it's not an array, the pattern only checks non-empty strings and numbers
 
                                                 const string = value && value.toString ? value.toString() : '';
                                                 const isError = !string.match(pattern);
