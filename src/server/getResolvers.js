@@ -479,7 +479,7 @@ export function getHelpersForResolvers(p = {}) {
     }
 
 
-    async function filterOutputRecord(record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
+    async function filterOutputRecord(req, res, record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
             await Promise.all(Object.keys(schema.properties).map(async function (key) {
@@ -499,12 +499,14 @@ export function getHelpersForResolvers(p = {}) {
                             if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match("_status"))) {
                                 if (innerSchema.type === "object" && innerSchema.properties) {
                                     if (typeof value == "object") {
-                                        filteredRecord[key] = await filterOutputRecord(value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
+                                        filteredRecord[key] = await filterOutputRecord(req, res, value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
                                     }
                                 } else {
                                     filteredRecord[key] =
                                         (finalDataFilter) ?
                                             await finalDataFilter({
+                                                req,
+                                                res,
                                                 value,
                                                 record,
                                                 isAdmin,
@@ -597,13 +599,22 @@ export function getHelpersForResolvers(p = {}) {
             const {record, items, records} = responseToObject;
 
             if (record) {
-                filteredResponse.record = await filterOutputRecord(record, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(filteredResponse.record), statusManager.isBanned(filteredResponse.record));
+                filteredResponse.record = await filterOutputRecord(
+                    req,
+                    res,
+                    record,
+                    editorIsAdmin,
+                    editorIsAuthorOrAdmin,
+                    authorIsNotDeleted,
+                    statusManager.isNotDeleted(filteredResponse.record),
+                    statusManager.isBanned(filteredResponse.record)
+                );
             } else if (items && items.length) {
                 filteredResponse.items = await Promise.all(items.map(async function (post) {
                     post = (post && post.toObject) ? post.toObject() : post;
                     if (post && post._id){
                         const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
-                        return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
+                        return await filterOutputRecord(req, res, post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                     }
                     return post;
                 }));
@@ -612,12 +623,12 @@ export function getHelpersForResolvers(p = {}) {
                     post = (post && post.toObject) ? post.toObject() : post;
                     if (post && post._id){
                         const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
-                        return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
+                        return await filterOutputRecord(req, res, post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                     }
                     return post;
                 }));
             } else if (responseToObject._id){
-                filteredResponse = await filterOutputRecord(responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
+                filteredResponse = await filterOutputRecord(req, res, responseToObject, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, statusManager.isNotDeleted(responseToObject), statusManager.isBanned(responseToObject));
             }
 
         } else if (response && typeof response == "object" && typeof response.length == "number") {
@@ -626,7 +637,7 @@ export function getHelpersForResolvers(p = {}) {
                 post = (post && post.toObject) ? post.toObject() : post;
                 if (post && post._id){
                     const {editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted} = await getInput({req, res, args, resolverProperties}, post);
-                    return await filterOutputRecord(post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
+                    return await filterOutputRecord(req, res, post, editorIsAdmin, editorIsAuthorOrAdmin, authorIsNotDeleted, post._status_isNotDeleted, post._status_isBanned)
                 }
                 return post;
             }))
