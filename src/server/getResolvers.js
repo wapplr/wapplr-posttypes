@@ -113,7 +113,8 @@ export function getHelpersForResolvers(p = {}) {
 
                             const valueType = (value && Array.isArray(value)) ? "array" : typeof value;
 
-                            const isExist = (value !== null && value !== undefined && value !== '');
+                            const isEmptyArray = valueType === 'array' && !value?.length;
+                            const isExist = (value !== null && value !== undefined && value !== false && value !== '' && !isEmptyArray);
                             const isValidType = (innerSchema.type && valueType === innerSchema.type);
                             const isValidTypeOrNull = isValidType || value === null;
 
@@ -121,7 +122,7 @@ export function getHelpersForResolvers(p = {}) {
 
                             if (required && !isExist) {
 
-                                // if it is required but the value is null, undefined, or an empty string
+                                // if it is required but the value is null, undefined, false, or an empty string, or an empty array
 
                                 allRequiredFieldsAreProvided = false;
                                 missingFields.push({path: "record." + nextKey, message: messages.missingData});
@@ -184,7 +185,7 @@ export function getHelpersForResolvers(p = {}) {
 
                                                 // if it's not an array, the pattern only checks non-empty strings and numbers
 
-                                                const string = value && value.toString ? value.toString() : '';
+                                                const string = (value || value === 0) && value.toString ? value.toString() : '';
                                                 const isError = !string.match(pattern);
                                                 if (isError) {
                                                     validByPattern = false;
@@ -410,6 +411,15 @@ export function getHelpersForResolvers(p = {}) {
 
         const editor = (reqUser && reqUser._id) ? reqUser : null;
 
+        const isNew = (
+            editor?._id &&
+            (
+                resolverProperties.extendResolver === 'createOne' ||
+                resolverProperties.extendResolver === 'createMany'
+            ) &&
+            ((args._author && args._author === editor?._id.toString()) || !args._author)
+        );
+
         const authorModelName = jsonSchema.properties?._author?.ref || "User";
         const AuthorModel = Model.database.getModel({modelName: authorModelName});
 
@@ -429,14 +439,14 @@ export function getHelpersForResolvers(p = {}) {
 
         const filterAuthorObject = (filterAuthor && resolverProperties?.enableFilterAuthor) ? await AuthorModel.findById(filterAuthor) : null;
 
-        const author = post?._author?._id || post?._author || filterAuthorObject?._id;
+        const author = isNew ? editor._id : (post?._author?._id || post?._author || filterAuthorObject?._id);
 
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
         const editorIsAdmin = !!(editor && editor._id && editor._status_isFeatured);
         const editorIsNotDeleted = !!(editor && editor._id && editor._status_isNotDeleted);
         const editorIsValidated = !!(editor && editor._id && editor._status_isValidated);
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
-        const authorIsNotDeleted = !!(
+        const authorIsNotDeleted = isNew ? editorIsNotDeleted : !!(
             (!post && !author) ? true :
                 (filterAuthorObject && author) ?
                     filterAuthorObject._status_isNotDeleted :
@@ -482,68 +492,87 @@ export function getHelpersForResolvers(p = {}) {
     async function filterOutputRecord(req, res, record, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, schema = jsonSchema) {
         const filteredRecord = {};
         if (schema.type === "object" && schema.properties && record){
-            await Promise.all(Object.keys(schema.properties).map(async function (key) {
 
-                const innerSchema = schema.properties[key];
-                const value = record[key];
+            const keys = Object.keys(schema.properties);
+            let i = -1;
 
-                const privateFunctionResponse = innerSchema.wapplr && typeof innerSchema.wapplr.private == "function" ? await innerSchema.wapplr.private({record, key, value}) : null;
+            let mutable = {};
 
-                const isPrivateForAdmin = !!((innerSchema.wapplr && innerSchema.wapplr.private === "admin") || (privateFunctionResponse === "admin"));
-                const isPrivateForAuthor = !!((innerSchema.wapplr && innerSchema.wapplr.private === "author") || (privateFunctionResponse === "author"));
-                const finalDataFilter = innerSchema.wapplr?.finalDataFilter;
+            async function next() {
 
-                if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
-                    if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match("_status"))) {
-                        if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match("_status"))) {
-                            if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match("_status"))) {
-                                if (innerSchema.type === "object" && innerSchema.properties) {
-                                    if (typeof value == "object") {
-                                        filteredRecord[key] = await filterOutputRecord(req, res, value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
+                i = i + 1;
+                const key = keys[i];
+
+                if (key) {
+
+                    const innerSchema = schema.properties[key];
+                    const value = record[key];
+
+                    const privateFunctionResponse = innerSchema.wapplr && typeof innerSchema.wapplr.private == "function" ? await innerSchema.wapplr.private({record, key, value}) : null;
+
+                    const isPrivateForAdmin = !!((innerSchema.wapplr && innerSchema.wapplr.private === "admin") || (privateFunctionResponse === "admin"));
+                    const isPrivateForAuthor = !!((innerSchema.wapplr && innerSchema.wapplr.private === "author") || (privateFunctionResponse === "author"));
+                    const finalDataFilter = innerSchema.wapplr?.finalDataFilter;
+
+                    if (( !isPrivateForAdmin && !isPrivateForAuthor ) || (isPrivateForAdmin && isAdmin) || (isPrivateForAuthor && isAuthorOrAdmin)) {
+                        if (isNotDeleted || (!isNotDeleted && isAuthorOrAdmin) || key === "_id" || (key && key.match("_status"))) {
+                            if (!isBanned || (isBanned && isAdmin) || key === "_id" || (key && key.match("_status"))) {
+                                if (authorIsNotDeleted || (!authorIsNotDeleted && isAdmin) || key === "_id" || (key && key.match("_status"))) {
+                                    if (innerSchema.type === "object" && innerSchema.properties) {
+                                        if (typeof value == "object") {
+                                            filteredRecord[key] = await filterOutputRecord(req, res, value, isAdmin, isAuthorOrAdmin, authorIsNotDeleted, isNotDeleted, isBanned, innerSchema)
+                                        }
+                                    } else {
+                                        filteredRecord[key] =
+                                            (finalDataFilter) ?
+                                                await finalDataFilter({
+                                                    req,
+                                                    res,
+                                                    value,
+                                                    record,
+                                                    isAdmin,
+                                                    isAuthorOrAdmin,
+                                                    authorIsNotDeleted,
+                                                    isNotDeleted,
+                                                    isBanned,
+                                                    schema,
+                                                    mutable
+                                                })
+                                                : value;
                                     }
-                                } else {
-                                    filteredRecord[key] =
-                                        (finalDataFilter) ?
-                                            await finalDataFilter({
-                                                req,
-                                                res,
-                                                value,
-                                                record,
-                                                isAdmin,
-                                                isAuthorOrAdmin,
-                                                authorIsNotDeleted,
-                                                isNotDeleted,
-                                                isBanned,
-                                                schema
-                                            })
-                                            : value;
                                 }
                             }
                         }
                     }
-                }
 
-                const required = !!(innerSchema.wapplr?.required || innerSchema.required);
+                    const required = !!(innerSchema.wapplr?.required || innerSchema.required);
 
-                if (required && filteredRecord[key] == null){
+                    if (required && filteredRecord[key] == null){
 
-                    const defaultValue =  (typeof innerSchema.wapplr?.default !== "undefined") ? innerSchema.wapplr.default : innerSchema.default;
-                    if (typeof defaultValue !== "undefined") {
-                        filteredRecord[key] = defaultValue;
-                    } else {
-                        if (innerSchema.type === "string"){
-                            filteredRecord[key] = "";
-                        } else if (innerSchema.type === "number"){
-                            filteredRecord[key] = 0;
-                        } else if (innerSchema.type === "boolean"){
-                            filteredRecord[key] = false;
+                        const defaultValue =  (typeof innerSchema.wapplr?.default !== "undefined") ? innerSchema.wapplr.default : innerSchema.default;
+                        if (typeof defaultValue !== "undefined") {
+                            filteredRecord[key] = defaultValue;
                         } else {
-                            filteredRecord[key] = "";
+                            if (innerSchema.type === "string"){
+                                filteredRecord[key] = "";
+                            } else if (innerSchema.type === "number"){
+                                filteredRecord[key] = 0;
+                            } else if (innerSchema.type === "boolean"){
+                                filteredRecord[key] = false;
+                            } else {
+                                filteredRecord[key] = "";
+                            }
                         }
                     }
+
+                    await next()
+
                 }
 
-            }))
+            }
+
+            await next();
+
         }
 
         return (Object.keys(filteredRecord).length || typeof record == "object") ? filteredRecord : null;

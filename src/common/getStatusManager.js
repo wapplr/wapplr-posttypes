@@ -43,7 +43,13 @@ export default function createStatusManager(p = {}) {
                         ||
                         (typeof required[key].type == "function" &&
                             required[key].type.name &&
-                            required[key].type.name.toLowerCase() === "string" && data[key] === "") ||
+                            required[key].type.name.toLowerCase() === "string" && data[key] === '') ||
+                        (typeof required[key].type == "function" &&
+                            required[key].type.name &&
+                            required[key].type.name.toLowerCase() === "object" && data[key] === null) ||
+                        (typeof required[key].type == "function" &&
+                            required[key].type.name &&
+                            required[key].type.name.toLowerCase() === "array" && data[key] === []) ||
                         (typeof required[key].value !== "undefined" &&
                             typeof required[key].value !== typeof data[key])
                         ||
