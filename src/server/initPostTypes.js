@@ -32,7 +32,7 @@ function getDefaultPostTypesManager(p = {}) {
         const configWithDefaults = {...config, authorModelName, messages, labels, perPage, statusManager, authorStatusManager, database};
 
         const Model = getModel({wapp, name, config: configWithDefaults});
-        const {resolvers, helpersForResolvers} = getResolvers({wapp, name, config: {...configWithDefaults, Model}});
+        const { resolvers, helpersForResolvers } = getResolvers({wapp, name, config: {...configWithDefaults, Model}});
 
         const defaultPostTypeObject = Object.create(Object.prototype, {
             database: {

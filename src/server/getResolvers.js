@@ -442,7 +442,10 @@ export function getHelpersForResolvers(p = {}) {
         const author = isNew ? editor._id : (post?._author?._id || post?._author || filterAuthorObject?._id);
 
         const editorIsAuthor = !!(editor && author && editor._id && editor._id.toString() === author.toString());
-        const editorIsAdmin = !!(editor && editor._id && editor._status_isFeatured);
+
+        const adminAccessKeys = ['_status_isFeatured', ...resolverProperties.adminAccessKeys ? resolverProperties.adminAccessKeys : []];
+        const editorIsAdmin = !!(editor && editor._id && adminAccessKeys.find((key)=>editor[key]));
+
         const editorIsNotDeleted = !!(editor && editor._id && editor._status_isNotDeleted);
         const editorIsValidated = !!(editor && editor._id && editor._status_isValidated);
         const editorIsAuthorOrAdmin = !!(editorIsAuthor || editorIsAdmin);
