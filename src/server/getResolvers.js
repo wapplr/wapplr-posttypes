@@ -1283,6 +1283,10 @@ export default function getResolvers(p = {}) {
 
                     }
 
+                    if (Object.keys(_operators).length && !filter._operators) {
+                        filter._operators = _operators;
+                    }
+
                     const r = await defaultResolver.resolve({...p, args});
                     if (r.pageInfo){
                         r.pageInfo.sort = (Array.isArray(args.sort) && Array.isArray(input.req.body.variables?.sort) && input.req.body.variables.sort.join(",")) || null
