@@ -6,7 +6,7 @@
         "wapplr": "^1.0.0",
         "wapplr-mongo": "^1.0.0",
         "wapplr-graphql": "^1.0.0",
-        "mongoose": "^5.12.0"
+        "mongoose": "^8.3.5"
     },
     "devDependencies": {
         "wapplr-cli": "^1.0.0"
@@ -25,7 +25,7 @@
         "wapplr-posttypes build": "wapplr-cli build",
         "wapplr-posttypes clean": "wapplr-cli clean"
     },
-    "version": "1.0.81",
+    "version": "1.0.82",
     "files": [
         "dist/*"
     ],

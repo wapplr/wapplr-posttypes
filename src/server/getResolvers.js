@@ -867,7 +867,7 @@ export default function getResolvers(p = {}) {
 
                 try {
                     const post = new Model({
-                        _id: mongoose.Types.ObjectId(),
+                        _id: new mongoose.Types.ObjectId(),
                         _createdDate: new Date(),
                         _author: (author && author._id) ? author._id : editor._id,
                         ...record,
