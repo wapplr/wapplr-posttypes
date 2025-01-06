@@ -289,6 +289,7 @@ export default function getModel(p = {}) {
         const array = typeof schemaProps.type === "object" && typeof schemaProps.type.length === "number";
         const findForValidate = schemaProps.wapplr?.findForValidate || {};
         const disableFindByAuthor = schemaProps.wapplr?.disableFindByAuthor || false;
+        const disableRefValidation = schemaProps.wapplr?.disableRefValidation || false;
 
         if (ref){
             modelSchema.path(path).validate(async function (value) {
@@ -297,6 +298,10 @@ export default function getModel(p = {}) {
                 }
                 const isModified = this.isModified(path);
                 if (!isModified){
+                    return true;
+                }
+
+                if (disableRefValidation) {
                     return true;
                 }
 
