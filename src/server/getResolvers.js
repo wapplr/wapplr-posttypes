@@ -738,7 +738,7 @@ export function getHelpersForResolvers(p = {}) {
 
             const rP = (typeof resolverProperties == "function") ? resolverProperties({TC, Model, statusManager, authorStatusManager, schemaComposer}) : {...resolverProperties};
 
-            const {extendResolver} = rP;
+            const {extendResolver, cache} = rP;
 
             let defaultResolver;
 
@@ -756,7 +756,25 @@ export function getHelpersForResolvers(p = {}) {
                 ...rP,
 
                 resolve: async function(p = {}) {
+
+                    if (cache?.get) {
+                        const r = cache.get(p);
+                        if (r) {
+                            return r;
+                        }
+                    }
+
                     const {context, args} = p;
+
+                    let savedArgs = args;
+
+                    if (cache?.set) {
+                        try {
+                            savedArgs = JSON.parse(JSON.stringify(args))
+                        } catch (e) {
+
+                        }
+                    }
 
                     const {req, res} = context;
 
@@ -767,7 +785,13 @@ export function getHelpersForResolvers(p = {}) {
 
                     composeValidationError(p, response);
 
-                    return await getOutput({req, res, args, resolverProperties: rP, response, userBeforeRequest: reqUser, inputBeforeRequest: input})
+                    const output = await getOutput({req, res, args, resolverProperties: rP, response, userBeforeRequest: reqUser, inputBeforeRequest: input});
+
+                    if (cache?.set) {
+                        cache.set({...p, args: savedArgs}, output);
+                    }
+
+                    return output;
 
                 }
             }
