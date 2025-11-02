@@ -285,7 +285,7 @@ export function getHelpersForResolvers(p = {}) {
         }
 
         return {
-            filter: (Object.keys(filteredFilter).length || typeof record == "object") ? filteredFilter : null,
+            filter: (Object.keys(filteredFilter).length) ? filteredFilter : null,
         }
     }
 
@@ -388,7 +388,7 @@ export function getHelpersForResolvers(p = {}) {
                 });
             }
 
-            rec(args, jsonSchema, resolverProperties.wapplr);
+            rec(args, jsonSchema, resolverProperties?.wapplr || {})
 
         } catch (e) {
             console.log('[APP]', 'Error occurred transforming args value', e, args)
